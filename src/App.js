@@ -1,22 +1,19 @@
 import React, { useState } from 'react';
 import './App.css';
+import LeafletMap from './LeafletMap'; // <-- Import our map component
 
 function App() {
-  // Les images seront gérées avec un useState pour chaque calque
   const [visiblePlan, setVisiblePlan] = useState('plan1');
   const [zoomLevel, setZoomLevel] = useState(100);
 
-  // Fonction pour gérer l'affichage des calques
   const toggleImage = (imageId) => {
     setVisiblePlan(imageId);
   };
 
-  // Fonction pour gérer le zoom
   const zoomImage = (e) => {
     setZoomLevel(e.target.value);
   };
 
-  // Fonction pour réinitialiser le zoom
   const resetZoom = () => {
     setZoomLevel(100);
   };
@@ -29,15 +26,26 @@ function App() {
         {/* Formulaire de recherche */}
         <div className="search-container">
           <form id="search-form">
-            <input type="text" id="search-input" placeholder="Rechercher..." aria-label="Rechercher" />
+            <input
+              type="text"
+              id="search-input"
+              placeholder="Rechercher..."
+              aria-label="Rechercher"
+            />
             <button type="submit">🔍</button>
           </form>
         </div>
 
         {/* Boutons pour afficher les plans */}
-        <button className="btn-blue" onClick={() => toggleImage('plan1')}>Plan 1</button>
-        <button className="btn-green" onClick={() => toggleImage('plan2')}>Plan 2</button>
-        <button className="btn-red" onClick={() => toggleImage('plan3')}>Plan 3</button>
+        <button className="btn-blue" onClick={() => toggleImage('plan1')}>
+          Plan 1
+        </button>
+        <button className="btn-green" onClick={() => toggleImage('plan2')}>
+          Plan 2
+        </button>
+        <button className="btn-red" onClick={() => toggleImage('plan3')}>
+          Plan 3
+        </button>
 
         {/* Barre de zoom */}
         <div className="zoom-container">
@@ -59,7 +67,7 @@ function App() {
         <div className="image-scroll-container">
           <img
             id="plan1"
-            src="SIF-V3-Phase 1.png"
+            src="SIF-V3-Phase1.png"
             alt="Plan 1"
             className={`scroll-image ${visiblePlan === 'plan1' ? '' : 'hidden'}`}
             style={{ transform: `scale(${zoomLevel / 100})` }}
@@ -80,6 +88,9 @@ function App() {
           />
         </div>
       </header>
+
+      {/* Here is the new map! */}
+      <LeafletMap />
     </div>
   );
 }
