@@ -59,7 +59,7 @@ function App() {
         <div className="image-scroll-container">
           <img
             id="plan1"
-            src="image1.png"
+            src="SIF-V3-Phase1.png"
             alt="Plan 1"
             className={`scroll-image ${visiblePlan === 'plan1' ? '' : 'hidden'}`}
             style={{ transform: `scale(${zoomLevel / 100})` }}
