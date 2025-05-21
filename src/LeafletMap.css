@@ -1,0 +1,25 @@
+/* LeafletMap.css */
+.map-section {
+    display: flex;
+    height: 500px;
+    margin-top: 50px;
+  }
+  
+  .map-container {
+    flex: 1;
+    height: 100%;
+    border: 2px solid black;
+    position: relative;
+  }
+  
+  .info-container {
+    flex: 1;
+    height: 100%;
+    background: rgba(240, 240, 240, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #333;
+  }
+  

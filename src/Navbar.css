@@ -1,0 +1,112 @@
+.navbar {
+  background-color: #333;
+  color: white;
+  padding: 10px 20px;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap; /* Autorise le retour à la ligne si trop d'éléments */
+}
+
+.navbar-scroll {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* pour équilibrer entre gauche et droite */
+  gap: 15px;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+
+
+.menu-button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.navbar-title {
+  margin: 0 20px;
+  font-size: 20px;
+}
+
+.page-buttons button {
+  margin: 0 5px;
+  padding: 5px 10px;
+  background-color: #444;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+.spacer {
+  flex: 1 1 auto; /* Permet à l’espace de s’adapter sans tout pousser */
+  min-width: 10px;
+}
+
+.right-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  flex-shrink: 0; /* Ne se réduit pas si l'espace manque */
+}
+.right-buttons button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.server-status {
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.server-status.connected {
+  background-color: #4caf50;
+}
+
+.side-menu {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  width: 300px;
+  height: calc(100% - 60px);
+  background-color: #f0f0f0;
+  box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+  padding: 20px;
+  overflow-y: auto;
+  z-index: 1001;
+}
+
+.side-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.layers ul {
+  list-style: none;
+  padding-left: 10px;
+}
+
+.layers li {
+  margin: 5px 0;
+}

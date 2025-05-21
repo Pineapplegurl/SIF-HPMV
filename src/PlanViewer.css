@@ -1,0 +1,22 @@
+.plan-scroll-container {
+  position: absolute;
+  top: 60px; /* hauteur de ta navbar si elle fait ~60px */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: scroll;
+  background-color: #fff; /* ou #f0f0f0 pour un fond clair */
+}
+
+.image-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.plan-full-image {
+  max-width: none; /* très important pour éviter qu'elle s’adapte à l’écran */
+  max-height: none;
+}

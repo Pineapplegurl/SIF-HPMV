@@ -1,53 +1,60 @@
-import React, { useEffect } from 'react';
+/*import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css'; // Important: Leaflet's default CSS
+import 'leaflet/dist/leaflet.css'; 
+import './LeafletMap.css';
+
 
 function LeafletMap() {
+  const mapRef = useRef(null); 
+
   useEffect(() => {
-    // 1. Create the map
-    const map = L.map('map').setView([48.8566, 2.3522], 5); 
-    // ^ Center on France, zoom level 5, just like your HTML snippet
-
-    // 2. Add a base tile layer (OpenStreetMap)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-
-    // 3. Add the OpenRailwayMap overlay
-    const openRailwayMap = L.tileLayer(
-      'http://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png',
-      {
+    if (!mapRef.current) {
+      mapRef.current = L.map('map', {
+        center: [43.5, 7], 
+        zoom: 9,
+        minZoom: 6,
+        maxZoom: 16,
+        preferCanvas: true, 
+      });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution:
-          'Data © OpenStreetMap contributors, Style: CC-BY-SA 2.0 OpenRailwayMap',
-        tileSize: 256
-      }
-    );
+        attribution: '© OpenStreetMap contributors',
+        opacity: 0.8,
+      }).addTo(mapRef.current);
 
-    // Add it on top of the base layer
-    openRailwayMap.addTo(map);
+      L.tileLayer('http://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: 'Data © OpenStreetMap contributors, Style: CC-BY-SA 2.0 OpenRailwayMap',
+        tileSize: 256,
+        opacity: 1,
+      }).addTo(mapRef.current);
 
-    // OPTIONAL: If you want to toggle the OpenRailwayMap layer on/off,
-    // you could set up a Layer Control:
-    // L.control.layers(null, { 'OpenRailwayMap': openRailwayMap }).addTo(map);
+      L.rectangle(
+        [[44, 4], [42, 8]], // Encasing region
+        { color: 'black', weight: 2, fillOpacity: 0 }
+      ).addTo(mapRef.current);
+    }
 
-    // Return a cleanup function if necessary (e.g., to remove event handlers)
     return () => {
-      map.remove(); // remove map on unmount if needed
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     };
   }, []);
 
-  // Return a div with a known ID or ref so Leaflet can hook into it
   return (
     <div
       id="map"
       style={{
         width: '100%',
-        height: '500px', // for example
+        height: '350px', // Adjusted height
+        margin: '20px auto',
+        borderRadius: '10px',
+        boxShadow: '0 4px 10px rgba(0,0,0,0.2)', // Added shadow
       }}
     />
   );
 }
 
-export default LeafletMap;
+export default LeafletMap;*/
