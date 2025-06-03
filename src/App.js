@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import Navbar from './Navbar';
-import PlanViewer from './PlanViewer';
+// useState est un hook qui permet de mémoriser un état . 
+import Navbar from './components/Navbar';
+import PlanViewer from './components/PlanViewer';
 import CoordinateSystem from './CoordinateSystem';
 import './App.css';
+import './index.css';
 
 function App() {
+  // activePage est l'état qui mémorise la page active
+  // setActivePage est la fonction qui permet de mettre à jour cet état
   const [activePage, setActivePage] = useState(1); // page 1 par défaut
 
   const imageOptions = [
@@ -14,6 +18,7 @@ function App() {
   ];
 
   return (
+    // JSX 
     <div className="app">
       <Navbar setActivePage={setActivePage} />
 

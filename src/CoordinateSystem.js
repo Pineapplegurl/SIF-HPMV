@@ -25,17 +25,15 @@ function CoordinateSystem() {
   const handleSearch = (event) => {
     setSearchQuery(event.target.value);
     const place = places.find(p => p.name.toLowerCase().includes(event.target.value.toLowerCase()));
-
+    
     if (place && imageRef.current) {
       const imageElement = imageRef.current;
       const scale = 2; // Définissez le niveau de zoom souhaité
       const offsetX = place.x * scale - imageElement.clientWidth / 2;
       const offsetY = place.y * scale - imageElement.clientHeight / 2;
-
       setZoomTransform({ scale, x: offsetX, y: offsetY });
     }
   };
-
   useEffect(() => {
     if (imageRef.current) {
       const imageElement = imageRef.current;

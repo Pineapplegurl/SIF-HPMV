@@ -1,0 +1,74 @@
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #1f3c88;
+  color: white;
+  padding: 10px 20px;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 1000;
+  height: 60px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.navbar-title {
+  font-size: 20px;
+  font-weight: bold;
+  margin-left: 10px;
+  margin-right: 20px;
+}
+
+.menu-button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 26px;
+  cursor: pointer;
+}
+
+.page-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.page-buttons button {
+  background-color: #294cb3;
+  border: none;
+  padding: 6px 16px;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.page-buttons button:hover {
+  background-color: #3c5ee7;
+}
+
+.spacer {
+  flex-grow: 1;
+}
+
+.right-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.right-buttons button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.server-status.connected {
+  background-color: #4caf50;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: white;
+}

@@ -48,6 +48,18 @@ app.get('/api/all-points', async (req, res) => {
     }
   });
 
+  app.get('/api/pkdata', async (req, res) => {
+    try {
+      await client.connect();
+      const db = client.db('SIF');
+      const data = await db.collection('PK').find().toArray();
+      res.json(data);
+    } catch (error) {
+      console.error(error);
+      res.status(500).send('Erreur serveur');
+    }
+  });  
+
 app.listen(PORT, () => {
   console.log(`✅ Serveur backend démarré sur http://localhost:${PORT}`);
 });
