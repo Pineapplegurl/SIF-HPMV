@@ -55,10 +55,10 @@ function Navbar({ setActivePage }) {
     <button className="text-2xl" onClick={() => setMenuOpen(!menuOpen)}>
       <FaBars />
     </button>
-    <h1 className="text-xl font-bold">SIF</h1>
+    <h1 className="text-xl font-bold">SIF v5</h1>
     <div className="flex gap-2">
-      <button className="bg-blue-700 px-4 py-1 rounded hover:bg-blue-600" onClick={() => setActivePage(1)}>Page 1</button>
-      <button className="bg-blue-700 px-4 py-1 rounded hover:bg-blue-600" onClick={() => setActivePage(2)}>Page 2</button>
+      <button className="bg-blue-700 px-4 py-1 rounded hover:bg-blue-600" onClick={() => setActivePage(1)}>Interp</button>
+      <button className="bg-blue-700 px-4 py-1 rounded hover:bg-blue-600" onClick={() => setActivePage(2)}>Tables</button>
     </div>
   </div>
   <div className="flex items-center gap-4">

@@ -1,110 +1,60 @@
 import React from 'react';
 
-const MapOverlay = ({ points, geoToPixel, imgRef }) => {
-    if (!imgRef.current) {
-      console.log('⚠ imgRef.current is null');
-      return null;
-    }
-  
-    const imgWidth = imgRef.current.naturalWidth;
-    const imgHeight = imgRef.current.naturalHeight;
-  
-    console.log('✅ Image dimensions:', imgWidth, imgHeight);
-  
-    const randomFivePoints = points
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 5);
-  
-    console.log('✅ Points:', randomFivePoints);
+const MapOverlay = ({ points, imgRef, zoom, naturalSize, pkMin, pkMax }) => {
+  if (!imgRef?.current || !naturalSize?.width || !naturalSize?.height) return null;
 
-  const gridLines = [];
-  const numCols = 10;
-  const numRows = 10;
-
-  // Colonnes (verticales)
-  for (let i = 1; i < numCols; i++) {
-    gridLines.push(
-      <div
-        key={`vline-${i}`}
-        style={{
-          position: 'absolute',
-          left: `${(i / numCols) * 100}%`,
-          top: 0,
-          bottom: 0,
-          width: '1px',
-          backgroundColor: 'rgba(0,0,0,0.3)',
-          zIndex: 501,
-        }}
-      />
-    );
-  }
-
-  // Lignes (horizontales)
-  for (let i = 1; i < numRows; i++) {
-    gridLines.push(
-      <div
-        key={`hline-${i}`}
-        style={{
-          position: 'absolute',
-          top: `${(i / numRows) * 100}%`,
-          left: 0,
-          right: 0,
-          height: '1px',
-          backgroundColor: 'rgba(0,0,0,0.3)',
-          zIndex: 501,
-        }}
-      />
-    );
-  }
-    console.log('✅ Grid lines:', gridLines.length);
+  const imageWidth = naturalSize.width * zoom;
+  const imageHeight = naturalSize.height * zoom;
 
   return (
-    <>
-      {/* Fond semi-transparent par-dessus l’image */}
+    <div
+      className="absolute top-0 left-0 pointer-events-none"
+      style={{
+        width: imageWidth,
+        height: imageHeight,
+        zIndex: 10,
+      }}
+    >
+      {/* Grille temporaire horizontale tous les 100px */}
+      {Array.from({ length: Math.floor(imageWidth / 100) }).map((_, i) => (
+        <div
+          key={`grid-x-${i}`}
+          className="absolute top-0 border-l border-dashed border-gray-400 opacity-50"
+          style={{
+            left: `${i * 100}px`,
+            height: `${imageHeight}px`,
+          }}
+        />
+      ))}
+
+      {/* FORCER  LE FOND TRANSPARENT */}
       <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: imgWidth,
-          height: imgHeight,
-          backgroundColor: 'rgba(255, 255, 255, 0.4)',
-          zIndex: 500,
-        }}
+        className="absolute top-0 left-0 bg-yellow-100 opacity-10"
+        style={{ width: imageWidth, height: imageHeight }}
       />
 
-      {/* Grille */}
-      {gridLines}
-
-      {/* Points rouges */}
-      {randomFivePoints.map((pt, idx) => {
-        const { x, y } = geoToPixel(pt.latitude, pt.longitude, imgWidth, imgHeight);
-
-        if (isNaN(x) || isNaN(y)) {
-          console.warn(`Point ${idx} has invalid coordinates: lat=${pt.latitude}, lon=${pt.longitude}`);
-          return null;
-        }
+      {/* Projection des points */}
+      {points.map((point, idx) => {
+        const pk = parseFloat(String(point.Pk || point.pk || "0").replace(',', '.'));
+        const x = ((pk - pkMin) / (pkMax - pkMin)) * imageWidth;
+        const y = imageHeight / 2;
 
         return (
           <div
-            key={idx}
+            key={point._id || idx}
+            className="absolute bg-red-600 border border-white rounded-full"
             style={{
-              position: 'absolute',
+              width: '10px',
+              height: '10px',
               left: `${x}px`,
               top: `${y}px`,
-              width: '16px',
-              height: '16px',
-              backgroundColor: 'red',
-              border: '2px solid black',
-              borderRadius: '50%',
               transform: 'translate(-50%, -50%)',
-              zIndex: 1000,
             }}
-            title={`PK ${pt.pk}`}
+            title={`PK ${point.Pk || point.pk}`}
           />
         );
       })}
-    </>
+    </div>
   );
 };
 

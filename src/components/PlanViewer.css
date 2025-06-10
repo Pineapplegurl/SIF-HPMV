@@ -21,11 +21,10 @@
 }
 
 .plan-full-image {
-  max-width: none; /* très important pour éviter qu'elle s’adapte à l’écran */
+  max-width: none; 
   max-height: none;;
 }
 
-/* Boutons de zoom */
 .zoom-controls {
   position: absolute;
   top: 10px;
