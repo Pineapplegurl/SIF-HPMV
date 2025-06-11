@@ -1,38 +1,23 @@
-import React, { useRef, useState} from 'react';
-import { usePkData } from '../hooks/usePkData'; // Custom hook pour récupérer les données PK depuis l’API
-import MapOverlay from './MapOverlay'; 
+// ✅ PlanViewer.js
+import React, { useRef, useState } from 'react';
 import CoordinateEditor from './CoordinateEditor';
+import { useManualPoints } from '../hooks/useManualPoints';
+
 const PlanViewer = ({ imageOptions }) => {
-  const { data, loading } = usePkData(); // Data 
-  const imgRef = useRef(null); // Référence de l’image
-  const containerRef = useRef(null); // Référence du conteneur s
-
-  // États pour le zoom, le drag, et la taille d’origine de l’image
+  const imgRef = useRef(null);
+  const containerRef = useRef(null);
   const [zoom, setZoom] = useState(1);
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
-
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 });
 
-  // Loading
-  if (loading) return <div className="text-center mt-20">Chargement...</div>;
-  if (!imageOptions || imageOptions.length === 0) return <div>Aucune image disponible</div>;
+  const { manualPoints, loading: loadingManual, refetch } = useManualPoints();
 
-  // On extrait tous les PK du dataset et on calcule le min/max pour la projection
-  const pkArray = data.map(d => parseFloat(String(d.Pk || d.pk || "0").replace(',', '.')));
-  const pkMin = Math.min(...pkArray);
-  const pkMax = Math.max(...pkArray);
-
-  const selectedPlan = imageOptions[0]; // Une seule image ici
-
-  // Fonctions de zoom
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 3));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.5));
   const handleResetZoom = () => setZoom(1);
 
-  // Début du drag
   const handleMouseDown = (e) => {
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
@@ -42,7 +27,6 @@ const PlanViewer = ({ imageOptions }) => {
     });
   };
 
-  // Pendant le drag, on scroll l’image
   const handleMouseMove = (e) => {
     if (!isDragging) return;
     const dx = e.clientX - dragStart.x;
@@ -53,28 +37,36 @@ const PlanViewer = ({ imageOptions }) => {
 
   const handleMouseUp = () => setIsDragging(false);
 
-  // Quand l’image s'affiche on stocke sa taille réelle
-  // garder la taille d'image pour l'adapter 
   const handleImageLoad = () => {
     const width = imgRef.current.naturalWidth;
     const height = imgRef.current.naturalHeight;
     setNaturalSize({ width, height });
-    setImageLoaded(true);
   };
+
+  const handleDelete = async (id) => {
+    const confirmDelete = window.confirm("Supprimer ce point ?");
+    if (!confirmDelete) return;
+    try {
+      await fetch(`http://localhost:5000/api/delete-point/${id}`, {
+        method: 'DELETE'
+      });
+      refetch();
+    } catch (err) {
+      alert("Erreur suppression");
+    }
+  };
+
+  const selectedPlan = imageOptions[0];
 
   return (
     <div className="flex flex-col items-center w-full bg-gray-100 min-h-screen pt-24 gap-8">
-      {/* Conteneur avec l’image et les boutons zoom */}
       <div className="relative w-[1000px] h-[600px] border-4 border-purple-600 rounded-lg bg-white shadow-lg">
-
-        {/* Boutons fixes dans le conteneur, PAS DE SCROLL  */}
         <div className="absolute top-4 right-4 z-30 flex gap-2 bg-white/80 p-1 rounded shadow">
-          <button onClick={handleZoomIn} className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700">+</button>
-          <button onClick={handleZoomOut} className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700">-</button>
-          <button onClick={handleResetZoom} className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700">Reset</button>
+          <button onClick={handleZoomIn} className="bg-purple-600 text-white px-3 py-1 rounded">+</button>
+          <button onClick={handleZoomOut} className="bg-purple-600 text-white px-3 py-1 rounded">-</button>
+          <button onClick={handleResetZoom} className="bg-purple-600 text-white px-3 py-1 rounded">Reset</button>
         </div>
 
-        {/* drag & scroll hori/verti */}
         <div
           ref={containerRef}
           className="w-full h-full overflow-auto"
@@ -84,9 +76,8 @@ const PlanViewer = ({ imageOptions }) => {
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
-          {/* L’image + superposition des points */}
           <div
-            className="relative min-w-max h-full" // relative donc c'est en haut à gauche le (0;0)
+            className="relative min-w-max h-full"
             style={{
               width: naturalSize.width * zoom,
               height: naturalSize.height * zoom,
@@ -108,59 +99,59 @@ const PlanViewer = ({ imageOptions }) => {
               draggable={false}
             />
 
-            <MapOverlay
-              points={data}
+            <CoordinateEditor
               imgRef={imgRef}
               zoom={zoom}
               naturalSize={naturalSize}
-              pkMin={pkMin}
-              pkMax={pkMax}
+              onNewPoint={refetch}
             />
 
-            <CoordinateEditor
-            imgRef={imgRef}
-            zoom={zoom}
-            naturalSize={naturalSize}
-          />
-
-            {/* Points projetés */}
-            {imageLoaded && data.map((d, idx) => {
-              const pk = parseFloat(String(d.Pk || d.pk || "0").replace(',', '.'));
-              const x = ((pk - pkMin) / (pkMax - pkMin)) * naturalSize.width * zoom;
-              const y = (naturalSize.height * zoom) / 2; // Y est fixé : centre vertical de l’image
-
-               console.log(`Point ${idx} - PK: ${pk.toFixed(3)}, X: ${x.toFixed(2)}, Y: ${y.toFixed(2)}`);
-              return (
-                <div
-                  key={d._id || idx}
-                  className="absolute"
-                  title={`PK ${pk.toFixed(3)}`} 
-                  style={{
-                    left: `${x}px`,
-                    top: `${y}px`,
-                    transform: 'translate(-50%, -50%)',
-                    background: 'red',
-                    width: '10px',
-                    height: '10px',
-                    borderRadius: '50%',
-                    border: '2px solid white',
-                    zIndex: 10,
-                  }}
-
-                />
-              );
-            })}
+            {manualPoints.filter(pt => pt.x !== undefined && pt.y !== undefined).map((point, idx) => (
+              <div
+                key={idx}
+                className="absolute bg-blue-600 border border-white rounded-full cursor-pointer"
+                title={`PK ${point.pk || 'Inconnu'}`}
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  left: `${point.x * zoom}px`,
+                  top: `${point.y * zoom}px`,
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 30,
+                }}
+                onClick={() => handleDelete(point._id)}
+              />
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Conteneurs 2 + 3 */}
+      {/* Tableau des points ajoutés */}
       <div className="flex flex-row w-[1000px] gap-6">
-        <div className="flex-1 bg-white h-48 rounded-lg border border-gray-300 shadow-md p-4">
-          <h2 className="text-lg font-semibold text-gray-700 mb-2">Container 2</h2>
-        </div>
-        <div className="w-1/3 bg-white h-48 rounded-lg border border-gray-300 shadow-md p-4">
-          <h2 className="text-lg font-semibold text-gray-700 mb-2">Container 1</h2>
+        <div className="w-2/3 bg-white min-h-[300px] rounded-lg border p-4 overflow-auto">
+          <h2 className="text-lg font-bold mb-2">Points ajoutés</h2>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-100 text-left">
+                <th>Nom</th><th>PK</th><th>X</th><th>Y</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {manualPoints.map((pt, idx) => (
+                <tr key={idx} className="border-t">
+                  <td>{pt.name}</td>
+                  <td>{pt.pk}</td>
+                  <td>{pt.x}</td>
+                  <td>{pt.y}</td>
+                  <td>
+                    <button onClick={() => handleDelete(pt._id)} className="text-red-600 hover:underline">
+                      Supprimer
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

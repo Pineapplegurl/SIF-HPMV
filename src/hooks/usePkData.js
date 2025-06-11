@@ -5,14 +5,14 @@ export function usePkData() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/pkdata')
+    fetch('http://localhost:5000/api/manual-points') // ⚠️ nouveau endpoint
       .then((res) => res.json())
       .then((data) => {
         setData(data);
         setLoading(false);
       })
       .catch((err) => {
-        console.error('Erreur de récupération des PK :', err);
+        console.error('Erreur de récupération des points manuels :', err);
         setLoading(false);
       });
   }, []);
