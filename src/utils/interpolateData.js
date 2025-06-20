@@ -1,6 +1,5 @@
 import * as d3 from 'd3-interpolate';
-
-export function interpolateData(pkArray, latArray, lonArray, step = 0.1) {
+export function interpolateData(pkArray, xArray, yArray, step = 0.1) {
   const minPk = Math.min(...pkArray);
   const maxPk = Math.max(...pkArray);
 
@@ -9,19 +8,19 @@ export function interpolateData(pkArray, latArray, lonArray, step = 0.1) {
     pkInterp.push(pk);
   }
 
-  const latInterpFunc = d3.interpolateBasis(latArray);
-  const lonInterpFunc = d3.interpolateBasis(lonArray);
+  const xInterpFunc = d3.interpolateBasis(xArray);
+  const yInterpFunc = d3.interpolateBasis(yArray);
 
-  const latInterp = pkInterp.map((_, i) =>
-    latInterpFunc(i / (pkInterp.length - 1))
+  const xInterp = pkInterp.map((_, i) =>
+    xInterpFunc(i / (pkInterp.length - 1))
   );
-  const lonInterp = pkInterp.map((_, i) =>
-    lonInterpFunc(i / (pkInterp.length - 1))
+  const yInterp = pkInterp.map((_, i) =>
+    yInterpFunc(i / (pkInterp.length - 1))
   );
 
   return pkInterp.map((pk, i) => ({
     pk,
-    latitude: latInterp[i],
-    longitude: lonInterp[i],
+    x: xInterp[i],
+    y: yInterp[i],
   }));
 }

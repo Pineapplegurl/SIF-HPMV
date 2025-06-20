@@ -1,7 +1,7 @@
-// ✅ PlanViewer.js
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import CoordinateEditor from './CoordinateEditor';
 import { useManualPoints } from '../hooks/useManualPoints';
+import { interpolateData } from '../utils/interpolateData';
 
 const PlanViewer = ({ imageOptions }) => {
   const imgRef = useRef(null);
@@ -13,6 +13,49 @@ const PlanViewer = ({ imageOptions }) => {
   const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 });
 
   const { manualPoints, loading: loadingManual, refetch } = useManualPoints();
+  const [interpolatedPoints, setInterpolatedPoints] = useState([]);
+
+useEffect(() => {
+  const validPoints = manualPoints
+    .filter(p => p.pk && p.x !== undefined && p.y !== undefined)
+    .map(p => ({
+      ...p,
+      pk: parseFloat(p.pk.toString().replace(',', '.')),
+    }));
+
+  // Groupe par line + track
+  const groupedByLineTrack = {};
+  for (const pt of validPoints) {
+    const key = `${pt.line}-${pt.track}`;
+    if (!groupedByLineTrack[key]) groupedByLineTrack[key] = [];
+    groupedByLineTrack[key].push(pt);
+  }
+
+  const allInterpolated = [];
+
+  // Pour chaque groupe : on trie, on interpole
+  Object.values(groupedByLineTrack).forEach(group => {
+    const sortedGroup = [...group].sort((a, b) => a.pk - b.pk);
+
+    for (let i = 0; i < sortedGroup.length - 1; i++) {
+      const p1 = sortedGroup[i];
+      const p2 = sortedGroup[i + 1];
+
+      if (p1.pk === p2.pk) continue;
+
+      const segment = interpolateData(
+        [p1.pk, p2.pk],
+        [p1.x, p2.x],
+        [p1.y, p2.y],
+        0.1
+      );
+
+      allInterpolated.push(...segment);
+    }
+  });
+
+  setInterpolatedPoints(allInterpolated);
+}, [manualPoints]);
 
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 3));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.5));
@@ -106,6 +149,7 @@ const PlanViewer = ({ imageOptions }) => {
               onNewPoint={refetch}
             />
 
+            {/* Pastilles bleues (points manuels) */}
             {manualPoints.filter(pt => pt.x !== undefined && pt.y !== undefined).map((point, idx) => (
               <div
                 key={idx}
@@ -122,13 +166,31 @@ const PlanViewer = ({ imageOptions }) => {
                 onClick={() => handleDelete(point._id)}
               />
             ))}
+
+            {/* Pastilles rouges (interpolées) */}
+            {interpolatedPoints.map((point, idx) => (
+  <React.Fragment key={`interp-${idx}`}>
+    <div
+      className="absolute bg-red-600 border border-white rounded-full"
+      style={{
+        width: '8px',
+        height: '8px',
+        left: `${point.x * zoom}px`,
+        top: `${point.y * zoom}px`,
+        transform: 'translate(-50%, -50%)',
+        zIndex: 20,
+      }}
+      title={`Interp PK ${point.pk.toFixed(3)}`}
+    />
+  </React.Fragment>
+))}
+ 
           </div>
         </div>
       </div>
 
-      {/* Tableau des points ajoutés */}
       <div className="flex flex-row w-[1000px] gap-6">
-        <div className="w-2/3 bg-white min-h-[300px] rounded-lg border p-4 overflow-auto">
+        <div className="w-2/3 bg-white h-[300px] rounded-lg border p-4 overflow-y-auto">
           <h2 className="text-lg font-bold mb-2">Points ajoutés</h2>
           <table className="w-full text-sm">
             <thead>
@@ -158,4 +220,4 @@ const PlanViewer = ({ imageOptions }) => {
   );
 };
 
-export default PlanViewer;
+export default PlanViewer; 
