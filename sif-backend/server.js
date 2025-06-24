@@ -3,13 +3,50 @@ const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
 require('dotenv').config();
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = 5000;
 
+const SECRET_KEY = process.env.JWT_SECRET || 'votre_cle_secrete';
+
 app.use(cors());
 
 app.use(express.json()); // Pour parser le JSON dans les requêtes POST
+
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.sendStatus(401);
+
+  jwt.verify(token, SECRET_KEY, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+}
+
+const ADMIN_USER = {
+  username: 'admin',
+  passwordHash: bcrypt.hashSync(process.env.ADMIN_PASSWORD || 'defaultpass', 10)};
+
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  if (username !== ADMIN_USER.username) {
+    return res.status(401).json({ error: 'Nom d’utilisateur incorrect' });
+  }
+
+  const validPassword = await bcrypt.compare(password, ADMIN_USER.passwordHash);
+  if (!validPassword) {
+    return res.status(401).json({ error: 'Mot de passe incorrect' });
+  }
+
+  const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: '2h' });
+  res.json({ token });
+});
 
 const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri, { useUnifiedTopology: true });
@@ -63,7 +100,7 @@ app.get('/api/all-points', async (req, res) => {
     }
   });  
 
-  app.post('/api/add-point', async (req, res) => {
+  app.post('/api/add-point', authenticateToken, async (req, res) => {
   const {
     type, name, line, track, pk,
     xSif, ySif, xReal, yReal, infos,
@@ -103,7 +140,8 @@ app.get('/api/manual-points', async (req, res) => {
   }
 });
 
-app.delete('/api/delete-point/:id', async (req, res) => {
+
+app.delete('/api/delete-point/:id', authenticateToken, async (req, res) => {
   const pointId = req.params.id;
 
   try {
@@ -119,6 +157,33 @@ app.delete('/api/delete-point/:id', async (req, res) => {
   } catch (err) {
     console.error('Erreur suppression point :', err);
     res.status(500).json({ error: 'Erreur serveur lors de la suppression.' });
+  }
+});
+
+app.put('/api/update-point/:id', authenticateToken, async (req, res) => {
+  const pointId = req.params.id;
+
+  // On retire les champs qu'on ne veut pas modifier
+  const { _id, createdAt, ...updateData } = req.body;
+
+  try {
+    await client.connect();
+    const db = client.db('SIF');
+    const collection = db.collection('AddedPoints');
+
+    const result = await collection.updateOne(
+      { _id: new ObjectId(pointId) },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'Point non trouvé.' });
+    }
+
+    res.status(200).json({ message: 'Point mis à jour avec succès.' });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour :', error);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
