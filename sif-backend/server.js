@@ -187,6 +187,78 @@ app.put('/api/update-point/:id', authenticateToken, async (req, res) => {
   }
 });
 
+
+app.post('/api/add-zone',authenticateToken, async (req, res) => {
+  const zone = req.body; 
+  try {
+    await client.connect();
+    const db = client.db('SIF');
+    const result = await db.collection('Zones').insertOne(zone);
+    res.status(201).json({ message: 'Zone ajoutée avec succès.', id: result.insertedId });
+  }
+  catch (error) {
+    console.error('Erreur ajout de la zone :', error);
+    res.status(500).json({ error: 'Erreur serveur lors de l’ajout de la zone.' });
+  }
+});
+
+app.get('/api/zones', async (req, res) => {
+  try {
+    await client.connect();
+    const db = client.db('SIF');
+    const zones = await db.collection('Zones').find({}).toArray();
+    res.json(zones);
+  } catch (error) {
+    console.error('Erreur fetch zones :', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.post('/api/interpolated-position', async (req, res) => {
+  const { pk, track, line } = req.body;
+
+  if (pk === undefined || !track || !line) {
+    return res.status(400).json({ error: 'Champs pk, track et line requis.' });
+  }
+
+  try {
+    await client.connect();
+    const db = client.db('SIF');
+    const collection = db.collection('PK');
+
+    const points = await collection
+      .find({ track: track, line: line, pk: { $exists: true } })
+      .sort({ pk: 1 })
+      .toArray();
+
+    if (points.length < 2) {
+      return res.status(404).json({ error: 'Pas assez de données pour interpoler.' });
+    }
+
+    let before, after;
+    for (let i = 0; i < points.length - 1; i++) {
+      if (points[i].pk <= pk && points[i + 1].pk >= pk) {
+        before = points[i];
+        after = points[i + 1];
+        break;
+      }
+    }
+
+    if (!before || !after) {
+      return res.status(404).json({ error: 'Impossible d’interpoler ce PK.' });
+    }
+
+    const ratio = (pk - before.pk) / (after.pk - before.pk);
+    const x = before.x + ratio * (after.x - before.x);
+    const y = before.y + ratio * (after.y - before.y);
+
+    res.json({ x, y });
+  } catch (err) {
+    console.error('Erreur interpolation :', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`✅ Serveur backend démarré sur http://localhost:${PORT}`);
 });

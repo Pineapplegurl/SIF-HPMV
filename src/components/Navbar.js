@@ -33,7 +33,7 @@ function Navbar({ setActivePage, activeLayers, setActiveLayers, isAdmin, setIsAd
         alert("Erreur réseau.");
       }
     };
-
+    // À vérifier si le token reste en front 
   const handleLogout = () => {
     localStorage.removeItem("token"); // Supprime le token
     setIsAdmin(false); // Repasser en mode invité
@@ -66,7 +66,7 @@ function Navbar({ setActivePage, activeLayers, setActiveLayers, isAdmin, setIsAd
   }
 
   const layerImageMap = {
-    "Situation actuelle": "SIF-V3-Etat actuel.png",
+    "Situation actuelle": "SIF-V6-SA.png",
     "Phase 1": "SIF-V3-Phase 1.png",
     "Phase 1 pose": "SIF-V3-Phase1Pose.png",
     "Phase 1 dépose": "SIF-V3-Phase1Dépose.png",
@@ -83,7 +83,8 @@ function Navbar({ setActivePage, activeLayers, setActiveLayers, isAdmin, setIsAd
     "Centre N2 HPMV": "Centre-N2-HPMV.png",
     "Filets": "Filets.png",
     "Zones d'actions": "Zones-actions.png",
-    "Zones de postes": "Zones-postes.png"
+    "Zones de postes": "Zones-postes.png",
+    "PDF": "SIF-V6.PDF"
   };
 
   const toggleLayer = (layer) => {
@@ -113,7 +114,8 @@ function Navbar({ setActivePage, activeLayers, setActiveLayers, isAdmin, setIsAd
     "Patrimoine": [
       "BTS GSM-R existante", "BTS GSM-R HPMV", "Postes existants",
       "Centre N2 HPMV", "Filets", "Zones d'actions", "Zones de postes"
-    ]
+    ],
+    "Autres": ["PDF"]
   };
 
   return (

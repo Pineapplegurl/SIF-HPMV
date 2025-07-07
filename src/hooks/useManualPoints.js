@@ -1,28 +1,30 @@
 import { useEffect, useState } from 'react';
-
+// Exemple sûr de useManualPoints.js
 export function useManualPoints() {
   const [manualPoints, setManualPoints] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchPoints = async () => {
+  const fetchManualPoints = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/manual-points');
+      const res = await fetch("http://localhost:5000/api/manual-points");
       const data = await res.json();
-      setManualPoints(data);
+      if (Array.isArray(data)) {
+        setManualPoints(data);
+      } else {
+        console.error("Erreur: format inattendu", data);
+        setManualPoints([]); // fallback
+      }
     } catch (err) {
-      console.error("Erreur chargement points manuels :", err);
+      console.error("Erreur de chargement des points manuels :", err);
+      setManualPoints([]); // fallback
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchPoints();
+    fetchManualPoints();
   }, []);
 
-  return {
-    manualPoints,
-    loading,
-    refetch: fetchPoints, // fonction accessible depuis PlanViewer
-  };
+  return { manualPoints, loading, refetch: fetchManualPoints };
 }

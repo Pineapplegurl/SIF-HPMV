@@ -13,7 +13,7 @@ function App() {
   const [activeLayers, setActiveLayers] = useState({});
   const [isAdmin, setIsAdmin] = useState(false);
   const imageOptions = [
-  { id: 'situation-actuelle', label: 'Situation actuelle', src: 'SIF-V3-Etat actuel.png' },
+  { id: 'situation-actuelle', label: 'Situation actuelle', src: 'SIF-V6-SA.png' },
   { id: 'phase-1', label: 'Phase 1', src: 'SIF-V3-Phase 1.png' },
   { id: 'phase-1-pose', label: 'Phase 1 pose', src: 'SIF-V3-Phase1Pose.png' },
   { id: 'phase-1-depose', label: 'Phase 1 dépose', src: 'SIF-V3-Phase1Dépose.png' },
@@ -31,6 +31,7 @@ function App() {
   { id: 'filets', label: 'Filets', src: 'Filets.png' },
   { id: 'zones-actions', label: 'Zones d\'actions', src: 'Zones-actions.png' },
   { id: 'zones-postes', label: 'Zones de postes', src: 'Zones-postes.png' },
+  { id: 'pdf', label: 'PDF', src: 'SIF-V6.PDF' } // Ajout de l'option PDF
 ];
 
   return (
