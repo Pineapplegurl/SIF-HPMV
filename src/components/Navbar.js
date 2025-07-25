@@ -1,60 +1,61 @@
-import React, { useState, useEffect } from 'react';
-import './Navbar.css'; 
-import { FaBars, FaQuestionCircle, FaUser, FaFileExport } from 'react-icons/fa';
+import React, { useState } from 'react';
+import './Navbar.css';
+import { FaUserCircle, FaFilePdf } from 'react-icons/fa';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-function Navbar({ setActivePage, activeLayers, setActiveLayers, isAdmin, setIsAdmin }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [missingLayer, setMissingLayer] = useState(null);
-
-
+function Navbar({ isAdmin, setIsAdmin, title = "SIF", onTablesClick, activePage, setActivePage }) {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
-  const handleLogin = async () => {
-      try {
-        const response = await fetch("http://localhost:5000/api/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: "admin", password: passwordInput }),
-        });
+  const [loginError, setLoginError] = useState("");
 
-        const data = await response.json();
-
-        if (response.ok) {
-          localStorage.setItem("token", data.token); // sauvegarde le token
-          setIsAdmin(true);
-          setShowPasswordModal(false);
-          setPasswordInput("");
-        } else {
-          alert(data.error || "Mot de passe incorrect.");
-        }
-      } catch (err) {
-        alert("Erreur réseau.");
-      }
-    };
-    // À vérifier si le token reste en front 
-  const handleLogout = () => {
-    localStorage.removeItem("token"); // Supprime le token
-    setIsAdmin(false); // Repasser en mode invité
+  // Switch handler
+  const handleAdminSwitch = () => {
+    if (isAdmin) {
+      localStorage.removeItem("token");
+      setIsAdmin(false);
+    } else {
+      setShowPasswordModal(true);
+    }
   };
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
+  const handleLogin = async () => {
+    setLoginError("");
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: passwordInput }),
+      });
+      if (!response.ok) {
+        let errorMsg = `Erreur réseau (${response.status})`;
+        try {
+          const data = await response.json();
+          errorMsg = data.error || errorMsg;
+        } catch (e) {
+          errorMsg += ' (réponse non JSON)';
+        }
+        setLoginError(errorMsg);
+        return;
+      }
+      const data = await response.json();
+      localStorage.setItem("token", data.token);
       setIsAdmin(true);
+      setShowPasswordModal(false);
+      setPasswordInput("");
+    } catch (err) {
+      setLoginError("Erreur réseau ou serveur injoignable.");
     }
-  }, []);
+  };
 
-    function handleExport() {
+  function handleExport() {
     const target = document.body;
     if (!target) {
       alert('Élément introuvable pour l’export.');
       return;
     }
-
     html2canvas(target).then((canvas) => {
-      const imgData = canvas.toDataURL('image.png');
+      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'px',
@@ -65,129 +66,58 @@ function Navbar({ setActivePage, activeLayers, setActiveLayers, isAdmin, setIsAd
     });
   }
 
-  const layerImageMap = {
-    "Situation actuelle": "SIF-V6-SA.png",
-    "Phase 1": "SIF-V3-Phase 1.png",
-    "Phase 1 pose": "SIF-V3-Phase1Pose.png",
-    "Phase 1 dépose": "SIF-V3-Phase1Dépose.png",
-    "Phase 2": "SIF-V3-Phase2.png",
-    "Phase 2 pose": "SIF-V3-Phase2Pose.png",
-    "Phase 2 dépose": "SIF-V3-Phase2Dépose.png",
-    "Réflexion/optior": "SIF-V3-RéflexionPCA.png",
-    "HPMV": "SIF-V3-HPMV.png",
-    "HPMV pose": "SIF-V3-HPMVPose.png",
-    "HPMV dépose": "SIF-V3-HPMVDépose.png",
-    "BTS GSM-R existante": "BTS-GSM-R-existante.png",
-    "BTS GSM-R HPMV": "BTS-GSM-R-HPMV.png",
-    "Postes existants": "Postes-existants.png",
-    "Centre N2 HPMV": "Centre-N2-HPMV.png",
-    "Filets": "Filets.png",
-    "Zones d'actions": "Zones-actions.png",
-    "Zones de postes": "Zones-postes.png",
-    "PDF": "SIF-V6.PDF"
-  };
-
-  const toggleLayer = (layer) => {
-    const imageName = layerImageMap[layer];
-    const imagePath = `/${imageName}`;
-    const img = new Image();
-    img.onload = () => {
-      setActiveLayers((prev) => ({
-        ...prev,
-        [layer]: !prev[layer],
-      }));
-      setMissingLayer(null);
-    };
-    img.onerror = () => {
-      setMissingLayer(`Le calque "${layer}" est en cours de chargement ou indisponible.`);
-    };
-    img.src = imagePath;
-  };
-
-  const calques = {
-    "SIF": ["Situation actuelle"],
-    "LNPCA": [
-      "Phase 1", "Phase 1 pose", "Phase 1 dépose",
-      "Phase 2", "Phase 2 pose", "Phase 2 dépose", "Réflexion/optior"
-    ],
-    "HPMV": ["HPMV", "HPMV pose", "HPMV dépose"],
-    "Patrimoine": [
-      "BTS GSM-R existante", "BTS GSM-R HPMV", "Postes existants",
-      "Centre N2 HPMV", "Filets", "Zones d'actions", "Zones de postes"
-    ],
-    "Autres": ["PDF"]
-  };
-
   return (
-    <>
-      <nav className="fixed top-0 left-0 w-full h-16 bg-blue-900 text-white flex items-center justify-between px-6 shadow z-50">
-        <div className="flex items-center gap-4">
-          <button className="text-2xl" onClick={() => setMenuOpen(!menuOpen)}>
-            <FaBars />
+    <header className="w-full bg-[#1A237E] shadow flex items-center px-8 py-4 justify-between  font-sans">
+      <div className="flex items-center gap-8">
+        <span className="text-2xl font-bold text-white tracking-wide">{title}</span>
+        <nav className="flex gap-6">
+          <button
+            className={`text-white font-semibold pb-1 border-b-2 ${activePage === 1 ? 'border-white' : 'border-transparent'} bg-transparent focus:outline-none transition-none`}
+            onClick={() => setActivePage(1)}
+            style={{ background: 'none' }}
+          >
+            Plans
           </button>
-          <h1 className="text-xl font-bold">SIF v5</h1>
-          <div className="flex gap-2">
-            <button className="bg-blue-700 px-4 py-1 rounded hover:bg-blue-600" onClick={() => setActivePage(1)}>Interp</button>
-            <button className="bg-blue-700 px-4 py-1 rounded hover:bg-blue-600" onClick={() => setActivePage(2)}>Tables</button>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <button title="Aide"><FaQuestionCircle /></button>
-          <div className="bg-green-500 px-3 py-1 rounded-full text-sm">Connecté</div>
-          <button title="Exporter la vue" onClick={handleExport}><FaFileExport /></button>
-          <div className="flex items-center gap-2">
-            {isAdmin ? (
-              <>
-                <span className="bg-yellow-500 text-white px-2 py-1 rounded text-sm">Admin</span>
-                <button
-                  className="text-sm bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded"
-                  onClick={handleLogout}
-                >
-                  Se déconnecter
-                </button>
-              </>
-            ) : (
-              <button title="Utilisateur" onClick={() => setShowPasswordModal(true)}> <FaUser /></button>
-            )}
-          </div>
-        </div>
-      </nav>
-
-      {menuOpen && (
-        <div className="fixed top-0 left-0 w-64 h-full bg-white border-r border-gray-300 shadow-lg z-50 p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-bold">Calques</h2>
-            <button onClick={() => setMenuOpen(false)}>×</button>
-          </div>
-          {missingLayer && (
-            <div className="text-sm text-orange-600 bg-orange-100 border border-orange-300 p-2 rounded mb-2">
-              {missingLayer}
-            </div>
+          {isAdmin && (
+            <button
+              className={`text-white font-semibold pb-1 border-b-2 ${activePage === 'sif-tables' ? 'border-white' : 'border-transparent'} bg-transparent focus:outline-none transition-none`}
+              onClick={() => setActivePage('sif-tables')}
+              style={{ background: 'none' }}
+            >
+              Tables
+            </button>
           )}
-          <div className="space-y-4">
-            {Object.entries(calques).map(([category, items]) => (
-              <div key={category}>
-                <strong>{category}</strong>
-                <ul className="ml-2 space-y-1">
-                  {items.map(item => (
-                    <li key={item}>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={!!activeLayers[item]}
-                          onChange={() => toggleLayer(item)}
-                        />
-                        {item}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+        </nav>
+      </div>
+      <div className="flex items-center gap-6">
+        {/* PDF Export */}
+        <button title="Exporter en PDF" onClick={handleExport} className="bg-white hover:bg-gray-200 text-[#1A237E] px-3 py-1 rounded shadow flex items-center gap-2">
+          <FaFilePdf className="text-lg" /> PDF
+        </button>
+        {/* Admin/User Switch + Profile */}
+        <div className="flex items-center gap-4">
+          <label className="flex items-center cursor-pointer select-none">
+            <span className={`mr-2 text-sm font-semibold ${isAdmin ? 'text-yellow-300' : 'text-gray-200'}`}>{isAdmin ? 'Admin' : 'Utilisateur'}</span>
+            <input
+              type="checkbox"
+              checked={isAdmin}
+              onChange={handleAdminSwitch}
+              className="sr-only"
+            />
+            <span
+              className={`w-12 h-6 flex items-center bg-gray-400 rounded-full p-1 transition-colors duration-200 ${isAdmin ? 'bg-yellow-400' : 'bg-gray-400'}`}
+              style={{ minWidth: 48 }}
+            >
+              <span
+                className={`bg-white w-5 h-5 rounded-full shadow transform transition-transform duration-200 ${isAdmin ? 'translate-x-6' : ''}`}
+              />
+            </span>
+          </label>
+          {/* Profile icon */}
+          <FaUserCircle className="text-3xl text-white opacity-80 cursor-pointer" title="Profil (à venir)" />
         </div>
-      )}
-
+      </div>
+      {/* Modal login */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded shadow-lg">
@@ -197,16 +127,17 @@ function Navbar({ setActivePage, activeLayers, setActiveLayers, isAdmin, setIsAd
               placeholder="Mot de passe"
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
-              className="border p-2 w-full mb-4"
+              className="border p-2 w-full mb-2"
             />
+            {loginError && <div className="text-red-600 text-sm mb-2">{loginError}</div>}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowPasswordModal(false)} className="px-4 py-2 bg-gray-300 rounded">Annuler</button>
+              <button onClick={() => { setShowPasswordModal(false); setLoginError(""); }} className="px-4 py-2 bg-gray-300 rounded">Annuler</button>
               <button onClick={handleLogin} className="px-4 py-2 bg-blue-600 text-white rounded">Valider</button>
             </div>
           </div>
         </div>
       )}
-    </>
+    </header>
   );
 }
 
