@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIF-HPMV Architecture Diagram</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .architecture-svg {
+            width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .legend {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        .legend h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .legend-item {
+            display: inline-block;
+            margin: 5px 15px 5px 0;
+        }
+        .legend-color {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            vertical-align: middle;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SIF-HPMV System Architecture</h1>
+        
+        <svg class="architecture-svg" viewBox="0 0 1000 700" xmlns="http://www.w3.org/2000/svg">
+            <!-- Background -->
+            <rect width="1000" height="700" fill="#f8f9fa" stroke="#dee2e6" stroke-width="2"/>
+            
+            <!-- Title -->
+            <text x="500" y="30" text-anchor="middle" font-size="24" font-weight="bold" fill="#2c3e50">
+                SIF-HPMV Railway Infrastructure Management System
+            </text>
+            
+            <!-- Client Browser Section -->
+            <g id="client-section">
+                <rect x="50" y="80" width="900" height="120" fill="#e3f2fd" stroke="#1976d2" stroke-width="2" rx="10"/>
+                <text x="500" y="105" text-anchor="middle" font-size="18" font-weight="bold" fill="#1976d2">
+                    Client Browser
+                </text>
+                
+                <!-- React Frontend -->
+                <rect x="80" y="120" width="840" height="60" fill="#61dafb" stroke="#20232a" stroke-width="2" rx="8"/>
+                <text x="500" y="140" text-anchor="middle" font-size="14" font-weight="bold" fill="#20232a">
+                    React.js Frontend (Port 3000)
+                </text>
+                <text x="500" y="160" text-anchor="middle" font-size="12" fill="#20232a">
+                    Leaflet Maps • Tailwind CSS • Interactive UI • Authentication • Data Visualization
+                </text>
+            </g>
+            
+            <!-- Communication Layer -->
+            <g id="communication">
+                <line x1="500" y1="200" x2="500" y2="240" stroke="#ff9800" stroke-width="3" marker-end="url(#arrowhead)"/>
+                <text x="520" y="225" font-size="12" fill="#ff9800">HTTP/REST API</text>
+            </g>
+            
+            <!-- Backend Server Section -->
+            <g id="backend-section">
+                <rect x="50" y="250" width="900" height="200" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="2" rx="10"/>
+                <text x="500" y="275" text-anchor="middle" font-size="18" font-weight="bold" fill="#7b1fa2">
+                    Backend Server (Node.js/Express - Port 5000)
+                </text>
+                
+                <!-- API Endpoints -->
+                <rect x="80" y="290" width="200" height="140" fill="#4caf50" stroke="#2e7d32" stroke-width="2" rx="8"/>
+                <text x="180" y="310" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    API Endpoints
+                </text>
+                <text x="180" y="330" text-anchor="middle" font-size="10" fill="white">
+                    /api/login
+                </text>
+                <text x="180" y="345" text-anchor="middle" font-size="10" fill="white">
+                    /api/points
+                </text>
+                <text x="180" y="360" text-anchor="middle" font-size="10" fill="white">
+                    /api/zones
+                </text>
+                <text x="180" y="375" text-anchor="middle" font-size="10" fill="white">
+                    /api/type-points
+                </text>
+                <text x="180" y="390" text-anchor="middle" font-size="10" fill="white">
+                    /api/interpolated-position
+                </text>
+                <text x="180" y="405" text-anchor="middle" font-size="10" fill="white">
+                    + Import/Export APIs
+                </text>
+                
+                <!-- Authentication -->
+                <rect x="300" y="290" width="180" height="70" fill="#ff5722" stroke="#d84315" stroke-width="2" rx="8"/>
+                <text x="390" y="310" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    Authentication
+                </text>
+                <text x="390" y="330" text-anchor="middle" font-size="11" fill="white">
+                    JWT Tokens
+                </text>
+                <text x="390" y="345" text-anchor="middle" font-size="11" fill="white">
+                    bcrypt Hashing
+                </text>
+                
+                <!-- Business Logic -->
+                <rect x="300" y="370" width="180" height="60" fill="#9c27b0" stroke="#6a1b9a" stroke-width="2" rx="8"/>
+                <text x="390" y="390" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    Business Logic
+                </text>
+                <text x="390" y="410" text-anchor="middle" font-size="11" fill="white">
+                    Coordinate Interpolation
+                </text>
+                
+                <!-- Middleware -->
+                <rect x="500" y="290" width="180" height="70" fill="#607d8b" stroke="#455a64" stroke-width="2" rx="8"/>
+                <text x="590" y="310" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    Middleware
+                </text>
+                <text x="590" y="330" text-anchor="middle" font-size="11" fill="white">
+                    CORS
+                </text>
+                <text x="590" y="345" text-anchor="middle" font-size="11" fill="white">
+                    Express.json()
+                </text>
+                
+                <!-- Data Processing -->
+                <rect x="500" y="370" width="180" height="60" fill="#795548" stroke="#5d4037" stroke-width="2" rx="8"/>
+                <text x="590" y="390" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    Data Processing
+                </text>
+                <text x="590" y="410" text-anchor="middle" font-size="11" fill="white">
+                    CSV Import/Export
+                </text>
+                
+                <!-- Security -->
+                <rect x="700" y="290" width="200" height="140" fill="#f44336" stroke="#d32f2f" stroke-width="2" rx="8"/>
+                <text x="800" y="310" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    Security Layer
+                </text>
+                <text x="800" y="330" text-anchor="middle" font-size="10" fill="white">
+                    Token Verification
+                </text>
+                <text x="800" y="345" text-anchor="middle" font-size="10" fill="white">
+                    Role-based Access
+                </text>
+                <text x="800" y="360" text-anchor="middle" font-size="10" fill="white">
+                    Input Validation
+                </text>
+                <text x="800" y="375" text-anchor="middle" font-size="10" fill="white">
+                    Environment Config
+                </text>
+                <text x="800" y="390" text-anchor="middle" font-size="10" fill="white">
+                    Admin vs Guest Mode
+                </text>
+                <text x="800" y="405" text-anchor="middle" font-size="10" fill="white">
+                    Protected Routes
+                </text>
+            </g>
+            
+            <!-- Communication to Database -->
+            <g id="db-communication">
+                <line x1="500" y1="450" x2="500" y2="490" stroke="#ff9800" stroke-width="3" marker-end="url(#arrowhead)"/>
+                <text x="520" y="475" font-size="12" fill="#ff9800">MongoDB Driver</text>
+            </g>
+            
+            <!-- Database Section -->
+            <g id="database-section">
+                <rect x="50" y="500" width="900" height="150" fill="#e8f5e8" stroke="#388e3c" stroke-width="2" rx="10"/>
+                <text x="500" y="525" text-anchor="middle" font-size="18" font-weight="bold" fill="#388e3c">
+                    MongoDB Database (Cloud)
+                </text>
+                
+                <!-- Collections -->
+                <rect x="80" y="540" width="130" height="90" fill="#4db6ac" stroke="#00695c" stroke-width="2" rx="8"/>
+                <text x="145" y="560" text-anchor="middle" font-size="12" font-weight="bold" fill="white">
+                    PK Collection
+                </text>
+                <text x="145" y="580" text-anchor="middle" font-size="10" fill="white">
+                    Points Kilométriques
+                </text>
+                <text x="145" y="595" text-anchor="middle" font-size="10" fill="white">
+                    Railway Points
+                </text>
+                <text x="145" y="610" text-anchor="middle" font-size="10" fill="white">
+                    Coordinates
+                </text>
+                
+                <rect x="230" y="540" width="130" height="90" fill="#4db6ac" stroke="#00695c" stroke-width="2" rx="8"/>
+                <text x="295" y="560" text-anchor="middle" font-size="12" font-weight="bold" fill="white">
+                    AddedPoints
+                </text>
+                <text x="295" y="580" text-anchor="middle" font-size="10" fill="white">
+                    Manual Points
+                </text>
+                <text x="295" y="595" text-anchor="middle" font-size="10" fill="white">
+                    User Generated
+                </text>
+                
+                <rect x="380" y="540" width="130" height="90" fill="#4db6ac" stroke="#00695c" stroke-width="2" rx="8"/>
+                <text x="445" y="560" text-anchor="middle" font-size="12" font-weight="bold" fill="white">
+                    TypePoints
+                </text>
+                <text x="445" y="580" text-anchor="middle" font-size="10" fill="white">
+                    BTS/GSM-R
+                </text>
+                <text x="445" y="595" text-anchor="middle" font-size="10" fill="white">
+                    Communication
+                </text>
+                
+                <rect x="530" y="540" width="130" height="90" fill="#4db6ac" stroke="#00695c" stroke-width="2" rx="8"/>
+                <text x="595" y="560" text-anchor="middle" font-size="12" font-weight="bold" fill="white">
+                    Zones
+                </text>
+                <text x="595" y="580" text-anchor="middle" font-size="10" fill="white">
+                    Geographic
+                </text>
+                <text x="595" y="595" text-anchor="middle" font-size="10" fill="white">
+                    Boundaries
+                </text>
+                
+                <rect x="680" y="540" width="130" height="90" fill="#4db6ac" stroke="#00695c" stroke-width="2" rx="8"/>
+                <text x="745" y="560" text-anchor="middle" font-size="12" font-weight="bold" fill="white">
+                    Interpolations
+                </text>
+                <text x="745" y="580" text-anchor="middle" font-size="10" fill="white">
+                    Coordinate
+                </text>
+                <text x="745" y="595" text-anchor="middle" font-size="10" fill="white">
+                    Conversion
+                </text>
+                
+                <rect x="830" y="540" width="130" height="90" fill="#4db6ac" stroke="#00695c" stroke-width="2" rx="8"/>
+                <text x="895" y="560" text-anchor="middle" font-size="12" font-weight="bold" fill="white">
+                    SavedTypePoints
+                </text>
+                <text x="895" y="580" text-anchor="middle" font-size="10" fill="white">
+                    Saved Data
+                </text>
+                <text x="895" y="595" text-anchor="middle" font-size="10" fill="white">
+                    Export Ready
+                </text>
+            </g>
+            
+            <!-- Arrow marker definition -->
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                        refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#ff9800"/>
+                </marker>
+            </defs>
+            
+            <!-- Key Features Box -->
+            <rect x="20" y="670" width="960" height="25" fill="#263238" stroke="#37474f" stroke-width="1" rx="5"/>
+            <text x="500" y="688" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                Key Features: Interactive Maps • Multi-phase Project Visualization • Coordinate System Management • Real-time Data • Authentication • CSV Import/Export
+            </text>
+        </svg>
+        
+        <div class="legend">
+            <h3>Architecture Components Legend</h3>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #61dafb;"></span>
+                React Frontend
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #4caf50;"></span>
+                API Layer
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #ff5722;"></span>
+                Authentication
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #9c27b0;"></span>
+                Business Logic
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #f44336;"></span>
+                Security
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #4db6ac;"></span>
+                Database Collections
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIF-HPMV Component Architecture</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .diagram-svg {
+            width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .legend {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .legend h3 {
+            margin-top: 0;
+            color: #495057;
+            grid-column: 1 / -1;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SIF-HPMV React Component Architecture</h1>
+        
+        <svg class="diagram-svg" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+            <!-- Background -->
+            <rect width="1200" height="800" fill="#fafafa" stroke="#e0e0e0" stroke-width="2"/>
+            
+            <!-- Title -->
+            <text x="600" y="30" text-anchor="middle" font-size="22" font-weight="bold" fill="#1a237e">
+                React Component Hierarchy &amp; Data Flow
+            </text>
+            
+            <!-- App.js Root Component -->
+            <g id="app-component">
+                <rect x="450" y="60" width="300" height="80" fill="#3f51b5" stroke="#1a237e" stroke-width="3" rx="10"/>
+                <text x="600" y="85" text-anchor="middle" font-size="16" font-weight="bold" fill="white">
+                    App.js
+                </text>
+                <text x="600" y="105" text-anchor="middle" font-size="12" fill="white">
+                    Main Application Component
+                </text>
+                <text x="600" y="120" text-anchor="middle" font-size="11" fill="white">
+                    State: isAdmin, activePage, activeLayers
+                </text>
+            </g>
+            
+            <!-- Navbar Component -->
+            <g id="navbar">
+                <rect x="50" y="180" width="250" height="100" fill="#4caf50" stroke="#2e7d32" stroke-width="2" rx="8"/>
+                <text x="175" y="205" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    Navbar.js
+                </text>
+                <text x="175" y="225" text-anchor="middle" font-size="11" fill="white">
+                    Navigation &amp; Authentication
+                </text>
+                <text x="175" y="245" text-anchor="middle" font-size="10" fill="white">
+                    • User Login/Logout
+                </text>
+                <text x="175" y="260" text-anchor="middle" font-size="10" fill="white">
+                    • Page Navigation
+                </text>
+                <text x="175" y="275" text-anchor="middle" font-size="10" fill="white">
+                    • Layer Management
+                </text>
+            </g>
+            
+            <!-- PlanViewer Component -->
+            <g id="planviewer">
+                <rect x="350" y="180" width="250" height="100" fill="#ff9800" stroke="#ef6c00" stroke-width="2" rx="8"/>
+                <text x="475" y="205" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    PlanViewer.js
+                </text>
+                <text x="475" y="225" text-anchor="middle" font-size="11" fill="white">
+                    Main Map Viewer
+                </text>
+                <text x="475" y="245" text-anchor="middle" font-size="10" fill="white">
+                    • Interactive Maps
+                </text>
+                <text x="475" y="260" text-anchor="middle" font-size="10" fill="white">
+                    • Phase Visualization
+                </text>
+                <text x="475" y="275" text-anchor="middle" font-size="10" fill="white">
+                    • Layer Switching
+                </text>
+            </g>
+            
+            <!-- CoordinateSystem Component -->
+            <g id="coordinate-system">
+                <rect x="650" y="180" width="250" height="100" fill="#9c27b0" stroke="#6a1b9a" stroke-width="2" rx="8"/>
+                <text x="775" y="205" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    CoordinateSystem.js
+                </text>
+                <text x="775" y="225" text-anchor="middle" font-size="11" fill="white">
+                    Coordinate Management
+                </text>
+                <text x="775" y="245" text-anchor="middle" font-size="10" fill="white">
+                    • Coordinate Conversion
+                </text>
+                <text x="775" y="260" text-anchor="middle" font-size="10" fill="white">
+                    • PK Interpolation
+                </text>
+                <text x="775" y="275" text-anchor="middle" font-size="10" fill="white">
+                    • System Switching
+                </text>
+            </g>
+            
+            <!-- SIFTables Component -->
+            <g id="sif-tables">
+                <rect x="950" y="180" width="200" height="100" fill="#607d8b" stroke="#455a64" stroke-width="2" rx="8"/>
+                <text x="1050" y="205" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    SIFTables.js
+                </text>
+                <text x="1050" y="225" text-anchor="middle" font-size="11" fill="white">
+                    Data Management
+                </text>
+                <text x="1050" y="245" text-anchor="middle" font-size="10" fill="white">
+                    • CRUD Operations
+                </text>
+                <text x="1050" y="260" text-anchor="middle" font-size="10" fill="white">
+                    • Data Import/Export
+                </text>
+            </g>
+            
+            <!-- Child Components of PlanViewer -->
+            <g id="map-overlay">
+                <rect x="200" y="320" width="200" height="80" fill="#ff5722" stroke="#d84315" stroke-width="2" rx="8"/>
+                <text x="300" y="345" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    MapOverlay.js
+                </text>
+                <text x="300" y="365" text-anchor="middle" font-size="11" fill="white">
+                    Interactive Overlays
+                </text>
+                <text x="300" y="380" text-anchor="middle" font-size="10" fill="white">
+                    • Point Markers
+                </text>
+                <text x="300" y="395" text-anchor="middle" font-size="10" fill="white">
+                    • Zone Polygons
+                </text>
+            </g>
+            
+            <!-- GuestMapPage Component -->
+            <g id="guest-map">
+                <rect x="450" y="320" width="200" height="80" fill="#795548" stroke="#5d4037" stroke-width="2" rx="8"/>
+                <text x="550" y="345" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    GuestMapPage.js
+                </text>
+                <text x="550" y="365" text-anchor="middle" font-size="11" fill="white">
+                    Public Access Mode
+                </text>
+                <text x="550" y="380" text-anchor="middle" font-size="10" fill="white">
+                    • Read-only Maps
+                </text>
+                <text x="550" y="395" text-anchor="middle" font-size="10" fill="white">
+                    • Limited Features
+                </text>
+            </g>
+            
+            <!-- Child Components of SIFTables -->
+            <g id="coordinate-editor">
+                <rect x="700" y="320" width="200" height="80" fill="#009688" stroke="#00695c" stroke-width="2" rx="8"/>
+                <text x="800" y="345" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    CoordinateEditor.js
+                </text>
+                <text x="800" y="365" text-anchor="middle" font-size="11" fill="white">
+                    Point Editing
+                </text>
+                <text x="800" y="380" text-anchor="middle" font-size="10" fill="white">
+                    • Add/Edit Points
+                </text>
+                <text x="800" y="395" text-anchor="middle" font-size="10" fill="white">
+                    • Coordinate Input
+                </text>
+            </g>
+            
+            <g id="zone-table">
+                <rect x="950" y="320" width="200" height="80" fill="#673ab7" stroke="#4527a0" stroke-width="2" rx="8"/>
+                <text x="1050" y="345" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    ZoneTable.js
+                </text>
+                <text x="1050" y="365" text-anchor="middle" font-size="11" fill="white">
+                    Zone Management
+                </text>
+                <text x="1050" y="380" text-anchor="middle" font-size="10" fill="white">
+                    • Zone CRUD
+                </text>
+                <text x="1050" y="395" text-anchor="middle" font-size="10" fill="white">
+                    • Polygon Editing
+                </text>
+            </g>
+            
+            <!-- Utility Components -->
+            <g id="utils">
+                <rect x="50" y="450" width="1100" height="60" fill="#37474f" stroke="#263238" stroke-width="2" rx="8"/>
+                <text x="600" y="475" text-anchor="middle" font-size="14" font-weight="bold" fill="white">
+                    Utility Components &amp; Hooks
+                </text>
+                <text x="600" y="495" text-anchor="middle" font-size="12" fill="white">
+                    Custom Hooks • Utility Functions • Helper Components • Data Processing • API Communication
+                </text>
+            </g>
+            
+            <!-- Data Flow Arrows -->
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                        refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#1565c0"/>
+                </marker>
+            </defs>
+            
+            <!-- App to Navbar -->
+            <line x1="500" y1="140" x2="250" y2="180" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead)"/>
+            <text x="350" y="155" font-size="10" fill="#1565c0">Props</text>
+            
+            <!-- App to PlanViewer -->
+            <line x1="600" y1="140" x2="475" y2="180" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead)"/>
+            
+            <!-- App to CoordinateSystem -->
+            <line x1="650" y1="140" x2="725" y2="180" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead)"/>
+            
+            <!-- App to SIFTables -->
+            <line x1="700" y1="140" x2="1000" y2="180" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead)"/>
+            
+            <!-- PlanViewer to MapOverlay -->
+            <line x1="425" y1="280" x2="350" y2="320" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead)"/>
+            
+            <!-- App to GuestMapPage (conditional) -->
+            <line x1="575" y1="140" x2="550" y2="320" stroke="#d32f2f" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowhead)"/>
+            <text x="520" y="230" font-size="10" fill="#d32f2f">if (!isAdmin)</text>
+            
+            <!-- SIFTables to child components -->
+            <line x1="1000" y1="280" x2="850" y2="320" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead)"/>
+            <line x1="1050" y1="280" x2="1050" y2="320" stroke="#1565c0" stroke-width="2" marker-end="url(#arrowhead)"/>
+            
+            <!-- State Management Section -->
+            <g id="state-management">
+                <rect x="100" y="550" width="1000" height="120" fill="#e1f5fe" stroke="#0277bd" stroke-width="2" rx="10"/>
+                <text x="600" y="575" text-anchor="middle" font-size="16" font-weight="bold" fill="#0277bd">
+                    State Management &amp; Data Flow
+                </text>
+                
+                <!-- State boxes -->
+                <rect x="130" y="590" width="200" height="60" fill="#03a9f4" stroke="#0277bd" stroke-width="2" rx="5"/>
+                <text x="230" y="610" text-anchor="middle" font-size="12" font-weight="bold" fill="white">
+                    Authentication State
+                </text>
+                <text x="230" y="625" text-anchor="middle" font-size="10" fill="white">
+                    isAdmin, token
+                </text>
+                <text x="230" y="640" text-anchor="middle" font-size="10" fill="white">
+                    localStorage sync
+                </text>
+                
+                <rect x="350" y="590" width="200" height="60" fill="#03a9f4" stroke="#0277bd" stroke-width="2" rx="5"/>
+                <text x="450" y="610" text-anchor="middle" font-size="12" font-weight="bold" fill="white">
+                    Navigation State
+                </text>
+                <text x="450" y="625" text-anchor="middle" font-size="10" fill="white">
+                    activePage
+                </text>
+                <text x="450" y="640" text-anchor="middle" font-size="10" fill="white">
+                    Page routing
+                </text>
+                
+                <rect x="570" y="590" width="200" height="60" fill="#03a9f4" stroke="#0277bd" stroke-width="2" rx="5"/>
+                <text x="670" y="610" text-anchor="middle" font-size="12" font-weight="bold" fill="white">
+                    Layer State
+                </text>
+                <text x="670" y="625" text-anchor="middle" font-size="10" fill="white">
+                    activeLayers
+                </text>
+                <text x="670" y="640" text-anchor="middle" font-size="10" fill="white">
+                    Map layer control
+                </text>
+                
+                <rect x="790" y="590" width="200" height="60" fill="#03a9f4" stroke="#0277bd" stroke-width="2" rx="5"/>
+                <text x="890" y="610" text-anchor="middle" font-size="12" font-weight="bold" fill="white">
+                    Data State
+                </text>
+                <text x="890" y="625" text-anchor="middle" font-size="10" fill="white">
+                    Points, zones, types
+                </text>
+                <text x="890" y="640" text-anchor="middle" font-size="10" fill="white">
+                    API fetched data
+                </text>
+            </g>
+            
+            <!-- API Communication Section -->
+            <g id="api-communication">
+                <rect x="100" y="690" width="1000" height="80" fill="#fff3e0" stroke="#f57c00" stroke-width="2" rx="10"/>
+                <text x="600" y="715" text-anchor="middle" font-size="16" font-weight="bold" fill="#f57c00">
+                    API Communication Layer
+                </text>
+                <text x="600" y="735" text-anchor="middle" font-size="12" fill="#f57c00">
+                    fetch() calls • JWT token headers • Error handling • Data transformation
+                </text>
+                <text x="600" y="755" text-anchor="middle" font-size="11" fill="#f57c00">
+                    Points API • Zones API • Authentication API • Type Points API • Interpolation API • Import/Export APIs
+                </text>
+            </g>
+        </svg>
+        
+        <div class="legend">
+            <h3>Component Types &amp; Responsibilities</h3>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #3f51b5;"></span>
+                Root Component (App.js)
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #4caf50;"></span>
+                Navigation Component
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #ff9800;"></span>
+                Map Components
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #9c27b0;"></span>
+                Coordinate System
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #607d8b;"></span>
+                Data Management
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #ff5722;"></span>
+                Interactive Elements
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #795548;"></span>
+                Public Access
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #03a9f4;"></span>
+                State Management
+            </div>
+        </div>
+    </div>
+</body>
+</html>
