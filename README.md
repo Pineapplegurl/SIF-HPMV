@@ -1,70 +1,241 @@
-# Getting Started with Create React App
+# SIF-HPMV Railway Infrastructure Management System
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A comprehensive full-stack web application for managing and visualizing railway infrastructure data with interactive mapping capabilities, coordinate system management, and multi-phase project planning.
 
-## Available Scripts
+## 🎯 Project Overview
 
-In the project directory, you can run:
+SIF-HPMV is a sophisticated railway infrastructure management system that provides:
 
-### `npm start`
+- **Interactive Map Visualization** with Leaflet integration
+- **Multi-phase Project Planning** with different implementation stages
+- **Coordinate System Management** with real-time interpolation
+- **Railway Point Management** (PK - Points Kilométriques)
+- **BTS/GSM-R Communication Infrastructure** tracking
+- **Zone Management** for geographical boundaries
+- **Data Import/Export** capabilities (CSV)
+- **Authentication & Access Control** (Admin/Guest modes)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## 📋 Architecture Documentation
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+This repository includes comprehensive architecture documentation:
 
-### `npm test`
+### 📊 Architecture Diagrams
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Comprehensive text-based architecture documentation
+2. **[architecture-diagram.html](./architecture-diagram.html)** - Visual system architecture diagram
+3. **[component-architecture.html](./component-architecture.html)** - React component hierarchy diagram
+4. **[data-flow-diagram.html](./data-flow-diagram.html)** - Data flow and business process diagram
 
-### `npm run build`
+### 🏗️ System Architecture
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        SIF-HPMV SYSTEM                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────┐ │
+│  │   Frontend      │    │    Backend      │    │Database │ │
+│  │   (React.js)    │◄──►│  (Node.js/      │◄──►│(MongoDB)│ │
+│  │                 │    │   Express.js)   │    │         │ │
+│  │ Port: 3000      │    │  Port: 5000     │    │ Cloud   │ │
+│  └─────────────────┘    └─────────────────┘    └─────────┘ │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 🛠️ Technology Stack
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Frontend
+- **React.js 19.0.0** - Modern UI framework
+- **Leaflet** - Interactive mapping library
+- **Tailwind CSS** - Utility-first CSS framework
+- **React Icons** - Icon library
+- **D3-interpolate** - Data interpolation
+- **html2canvas & jsPDF** - Export functionality
 
-### `npm run eject`
+### Backend
+- **Node.js & Express.js** - Server framework
+- **MongoDB** - NoSQL database
+- **JWT** - Authentication tokens
+- **bcrypt** - Password hashing
+- **CORS** - Cross-origin resource sharing
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## 🚀 Getting Started
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Prerequisites
+- Node.js (v14 or higher)
+- MongoDB database
+- npm or yarn package manager
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Frontend Setup
+```bash
+# Install dependencies
+npm install
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Start development server
+npm start
 
-## Learn More
+# Build for production
+npm run build
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+# Run tests
+npm test
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Backend Setup
+```bash
+# Navigate to backend directory
+cd sif-backend
 
-### Code Splitting
+# Install dependencies
+npm install
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your database connection and JWT secret
 
-### Analyzing the Bundle Size
+# Start backend server
+npm start
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### Environment Configuration
 
-### Making a Progressive Web App
+Create a `.env` file in the `sif-backend` directory:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+```env
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret_key
+ADMIN_HASH=your_bcrypt_hashed_password
+```
 
-### Advanced Configuration
+## 📁 Project Structure
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+```
+SIF-HPMV/
+├── src/                          # React Frontend
+│   ├── components/               # React Components
+│   │   ├── Navbar.js            # Navigation & Authentication
+│   │   ├── PlanViewer.js         # Main Map Viewer
+│   │   ├── GuestMapPage.js       # Public Access Mode
+│   │   ├── SIFTables.js          # Data Management
+│   │   ├── MapOverlay.js         # Interactive Map Features
+│   │   ├── CoordinateEditor.js   # Coordinate Management
+│   │   └── ZoneTable.js          # Zone Management
+│   ├── hooks/                    # Custom React Hooks
+│   ├── utils/                    # Utility Functions
+│   └── App.js                    # Main App Component
+├── sif-backend/                  # Node.js Backend
+│   ├── server.js                 # Express Server
+│   ├── .env                      # Environment Variables
+│   └── package.json              # Backend Dependencies
+├── public/                       # Static Assets
+├── package.json                  # Frontend Dependencies
+├── ARCHITECTURE.md               # Architecture Documentation
+├── architecture-diagram.html     # Visual Architecture
+├── component-architecture.html   # Component Diagrams
+└── data-flow-diagram.html       # Data Flow Visualization
+```
 
-### Deployment
+## 🔐 Authentication & Security
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+- **JWT-based authentication** with secure token management
+- **bcrypt password hashing** for secure credential storage
+- **Role-based access control** (Admin vs Guest modes)
+- **Protected API endpoints** with middleware authentication
+- **Input validation** and error handling
+- **Environment-based configuration** for sensitive data
 
-### `npm run build` fails to minify
+## 🗄️ Database Schema
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+### MongoDB Collections
+
+- **PK Collection** - Points Kilométriques (railway reference points)
+- **AddedPoints** - User-generated points with interpolated coordinates
+- **TypePoints** - BTS/GSM-R communication infrastructure points
+- **Zones** - Geographical boundary definitions
+- **Interpolations** - Coordinate conversion data
+- **SavedTypePoints** - Exported/saved communication points
+
+## 🎨 Features
+
+### Map Visualization
+- Interactive Leaflet maps with multiple layers
+- Railway infrastructure phase visualization
+- Real-time coordinate system conversion
+- Zoom, pan, and layer management
+- Export capabilities (PDF, images)
+
+### Data Management
+- CRUD operations for all data types
+- CSV import/export functionality
+- Real-time data synchronization
+- Search and filtering capabilities
+- Bulk data operations
+
+### Coordinate Systems
+- Multiple coordinate system support
+- PK (Point Kilométrique) to coordinate interpolation
+- Real-time coordinate conversion
+- Interactive coordinate editing
+
+### Project Phases
+- **Current Situation** - Existing infrastructure
+- **Phase 1 & 2** - Implementation stages
+- **HPMV** - High-speed rail implementation
+- **BTS/GSM-R** - Communication infrastructure
+- **Zones** - Operational boundaries
+
+## 🔧 Development
+
+### Available Scripts
+
+```bash
+# Frontend
+npm start          # Development server (port 3000)
+npm run build      # Production build
+npm test           # Run tests
+npm run eject      # Eject from Create React App
+
+# Backend
+cd sif-backend
+npm start          # Start backend server (port 5000)
+```
+
+### API Endpoints
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for complete API documentation including:
+- Authentication endpoints
+- Points management
+- Zone operations
+- Data import/export
+- Coordinate interpolation
+
+## 📖 Documentation
+
+For detailed technical documentation, please refer to:
+
+1. **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Complete system architecture
+2. **[architecture-diagram.html](./architecture-diagram.html)** - Interactive architecture diagram
+3. **[component-architecture.html](./component-architecture.html)** - Component relationships
+4. **[data-flow-diagram.html](./data-flow-diagram.html)** - Data flow visualization
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🆘 Support
+
+For questions and support, please refer to the architecture documentation or open an issue in the repository.
+
+---
+
+**SIF-HPMV** - Railway Infrastructure Management System
+*Built with React.js, Node.js, and MongoDB*
