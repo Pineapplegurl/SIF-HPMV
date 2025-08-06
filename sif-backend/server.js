@@ -516,3 +516,87 @@ app.delete('/api/delete-zone/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Erreur serveur lors de la suppression.' });
   }
 });
+
+// Mettre à jour un point BTS/GSMR
+app.put('/api/type-points/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const updatedPoint = req.body;
+  
+  try {
+    await client.connect();
+    const db = client.db('SIF');
+    const { ObjectId } = require('mongodb');
+    
+    const result = await db.collection('TypePoints').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedPoint }
+    );
+    
+    if (result.matchedCount === 0) {
+      res.status(404).json({ message: 'Point BTS/GSMR non trouvé.' });
+    } else {
+      res.status(200).json({ message: 'Point BTS/GSMR mis à jour avec succès.' });
+    }
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du point BTS/GSMR:', error);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  } finally {
+    await client.close();
+  }
+});
+
+// Mettre à jour un point d'interpolation
+app.put('/api/manual-points/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const updatedPoint = req.body;
+  
+  try {
+    await client.connect();
+    const db = client.db('SIF');
+    const { ObjectId } = require('mongodb');
+    
+    const result = await db.collection('AddedPoints').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedPoint }
+    );
+    
+    if (result.matchedCount === 0) {
+      res.status(404).json({ message: 'Point d\'interpolation non trouvé.' });
+    } else {
+      res.status(200).json({ message: 'Point d\'interpolation mis à jour avec succès.' });
+    }
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du point d\'interpolation:', error);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  } finally {
+    await client.close();
+  }
+});
+
+// Mettre à jour une zone
+app.put('/api/zones/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const updatedZone = req.body;
+  
+  try {
+    await client.connect();
+    const db = client.db('SIF');
+    const { ObjectId } = require('mongodb');
+    
+    const result = await db.collection('Zones').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedZone }
+    );
+    
+    if (result.matchedCount === 0) {
+      res.status(404).json({ message: 'Zone non trouvée.' });
+    } else {
+      res.status(200).json({ message: 'Zone mise à jour avec succès.' });
+    }
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de la zone:', error);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  } finally {
+    await client.close();
+  }
+});

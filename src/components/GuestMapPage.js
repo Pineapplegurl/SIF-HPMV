@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import Navbar from './Navbar';
-import { FaUserCircle, FaSearch, FaTrain, FaBroadcastTower, FaLayerGroup } from 'react-icons/fa';
+import { FaUserCircle, FaSearch, FaTrain, FaBroadcastTower, FaLayerGroup, FaPlus, FaMinus, FaExpand, FaBuilding, FaCog } from 'react-icons/fa';
+import { useTypePoints } from '../hooks/useTypePoints';
 
 const layerImageMap = {
   "Situation actuelle": "SIF-V6-SIF-EA.png",
@@ -14,17 +15,19 @@ const layerImageMap = {
   "HPMV": "SIF-V3-HPMV.png",
   "HPMV pose": "SIF-V3-HPMVPose.png",
   "HPMV dépose": "SIF-V3-HPMVDépose.png",
-  "BTS GSM-R existante": "BTS-GSM-R-existante.png",
-  "BTS GSM-R HPMV": "BTS-GSM-R-HPMV.png",
-  "Postes existants": "Postes-existants.png",
-  "Centre N2 HPMV": "Centre-N2-HPMV.png",
   "Filets": "Filets.png",
   "Zones d'actions": "Zones-actions.png",
   "Zones de postes": "Zones-postes.png",
   "PDF": "SIF-V6.PDF"
 };
 
-const GuestMapPage = ({ isAdmin, setIsAdmin }) => {
+// Calques qui contrôlent l'affichage des points (pas des images)
+const pointLayers = ["BTS GSM-R", "Postes existants", "Centre N2 HPMV"];
+
+// Liste complète des calques (images + points)
+const allLayers = [...Object.keys(layerImageMap), ...pointLayers];
+
+const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) => {
   const imgRef = useRef(null);
   const containerRef = useRef(null);
   const [zoom, setZoom] = useState(1);
@@ -32,10 +35,39 @@ const GuestMapPage = ({ isAdmin, setIsAdmin }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 });
-  const [activeLayers, setActiveLayers] = useState({ "Situation actuelle": true });
+  // Use activeLayers and setActiveLayers from props passed by App.js
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState(null);
+
+  // Hook pour récupérer les points BTS/GSMR
+  const { typePoints } = useTypePoints();
+
+  // Icon component et couleurs
+  const getTypeIcon = (type, size = 24) => {
+    const iconProps = { size: size, style: { filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' } };
+    
+    switch (type) {
+      case 'BTS GSM-R':
+      case 'BTS GSM-R existante':
+      case 'BTS GSM-R HPMV':
+        return <FaBroadcastTower {...iconProps} color="#1976D2" />; // Bleu - Antenne/Tour
+      case 'Postes existants':
+        return <FaBuilding {...iconProps} color="#1976D2" />; // Bleu - Poste/Bâtiment ferroviaire
+      case 'Centre N2 HPMV':
+        return <FaCog {...iconProps} color="#1976D2" />; // Bleu - Centre technique/Équipement
+      default:
+        return <FaBroadcastTower {...iconProps} color="#1976D2" />; // Bleu par défaut
+    }
+  };
+
+  // Color mapping par états (border colors)
+  const etatColorMap = {
+    'Etude': '#FF9800', // Orange
+    'Réalisation': '#4CAF50', // Vert
+    'Mis en service': '#2196F3', // Bleu
+    'Exploitation': '#2196F3', // Bleu
+  };
 
   // Dummy search logic (replace with real API)
   const handleSearchChange = e => {
@@ -128,18 +160,72 @@ const GuestMapPage = ({ isAdmin, setIsAdmin }) => {
           <div className="w-full bg-white rounded-xl shadow border border-gray-200 p-4 mb-4">
             <h3 className="text-lg font-bold text-blue-900 mb-3">Calques</h3>
             <CalquesCollapsible
-              layers={Object.keys(layerImageMap)}
+              layers={allLayers}
               activeLayers={activeLayers}
               setActiveLayers={setActiveLayers}
             />
           </div>
           {/* Légende épurée */}
-          <div className="w-full bg-white rounded-xl shadow border border-gray-200 p-4">
-            <h3 className="text-lg font-bold text-blue-900 mb-3">Légende</h3>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-base"><FaBroadcastTower className="text-blue-700 text-lg" /> <span className="font-medium text-gray-700">Relais GSM-R</span></div>
-              <div className="flex items-center gap-2 text-base"><FaLayerGroup className="text-blue-400 text-lg" /> <span className="font-medium text-gray-700">TEST</span></div>
-              <div className="flex items-center gap-2 text-base"><FaTrain className="text-gray-500 text-lg" /> <span className="font-medium text-gray-700">TEST</span></div>
+          <div className="w-full bg-white rounded-xl shadow border border-gray-200 p-4 flex flex-col items-center justify-center">
+            <h3 className="text-lg font-bold text-blue-900 mb-3 text-center w-full">Légende</h3>
+            <div className="flex flex-col gap-3 items-center">
+              <div className="flex items-center gap-2 text-base">
+                <div style={{
+                  backgroundColor: 'white',
+                  borderRadius: '50%',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <FaBroadcastTower color="#1976D2" size={16} />
+                </div>
+                <span className="font-medium text-gray-700">BTS GSM-R</span>
+              </div>
+              <div className="flex items-center gap-2 text-base">
+                <div style={{
+                  backgroundColor: 'white',
+                  borderRadius: '50%',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <FaBuilding color="#1976D2" size={16} />
+                </div>
+                <span className="font-medium text-gray-700">Postes existants</span>
+              </div>
+              <div className="flex items-center gap-2 text-base">
+                <div style={{
+                  backgroundColor: 'white',
+                  borderRadius: '50%',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <FaCog color="#1976D2" size={16} />
+                </div>
+                <span className="font-medium text-gray-700">Centre N2 HPMV</span>
+              </div>
+              <div className="mt-2 text-sm text-gray-600">
+
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="font-semibold">Bordures :</span>
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <div className="w-3 h-3 rounded-full border-2" style={{borderColor: '#FF9800'}}></div>
+                  <span>Étude</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 rounded-full border-2" style={{borderColor: '#4CAF50'}}></div>
+                  <span>Réalisation</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 rounded-full border-2" style={{borderColor: '#2196F3'}}></div>
+                  <span>Mis en service</span>
+                </div>
+              </div>
             </div>
           </div>
         </aside>
@@ -147,32 +233,59 @@ const GuestMapPage = ({ isAdmin, setIsAdmin }) => {
         <div className="flex-1 min-w-0 flex flex-col gap-8">
           {/* Carto */}
           <div className="relative max-w-[1000px] w-full h-[600px] border-4 border-[#1A237E] rounded-lg bg-white shadow-lg">
-            <div className="absolute top-4 right-4 z-30 flex gap-2 bg-white/80 p-1 rounded shadow">
-              <button
-                className="bg-[#1A237E] text-white px-3 py-1 rounded hover:bg-[#16205c] transition-colors"
-                onClick={handleZoomIn}
-                aria-label="Zoom in"
-              >
-                +
-              </button>
-              <button
-                className="bg-[#1A237E] text-white px-3 py-1 rounded hover:bg-[#16205c] transition-colors"
-                onClick={handleZoomOut}
-                aria-label="Zoom out"
-              >
-                −
-              </button>
-              <button
-                className="bg-[#1A237E] text-white px-3 py-1 rounded hover:bg-[#16205c] transition-colors"
-                onClick={handleResetZoom}
-                aria-label="Reset"
-              >
-                Reset
-              </button>
+            {/* Floating Action Bar - Compact pour invités */}
+            <div className="absolute top-4 right-4 z-30">
+              <div className="flex items-center gap-1 bg-white/95 backdrop-blur-sm p-2 rounded-xl shadow-lg border border-gray-200">
+                {/* Contrôles de zoom */}
+                <button 
+                  onClick={handleZoomIn} 
+                  className="bg-[#1A237E] text-white p-2 rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  title="Zoom avant"
+                  aria-label="Zoom avant"
+                >
+                  <FaPlus size={14} />
+                </button>
+                <button 
+                  onClick={handleZoomOut} 
+                  className="bg-[#1A237E] text-white p-2 rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  title="Zoom arrière"
+                  aria-label="Zoom arrière"
+                >
+                  <FaMinus size={14} />
+                </button>
+                <button 
+                  onClick={handleResetZoom} 
+                  className="bg-gray-600 text-white px-2 py-2 rounded-lg hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  title="Réinitialiser le zoom"
+                  aria-label="Réinitialiser le zoom"
+                >
+                  <span className="text-xs font-bold">1:1</span>
+                </button>
+
+                {/* Séparateur visuel */}
+                <div className="w-px h-8 bg-gray-300 mx-1"></div>
+
+                {/* Plein écran */}
+                <button
+                  className="bg-[#1A237E] text-white p-2 rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  onClick={() => {
+                    const el = document.querySelector('.map-fullscreen-container');
+                    if (!document.fullscreenElement) {
+                      el?.requestFullscreen();
+                    } else {
+                      document.exitFullscreen();
+                    }
+                  }}
+                  title="Plein écran"
+                  aria-label="Plein écran"
+                >
+                  <FaExpand size={14} />
+                </button>
+              </div>
             </div>
             <div
               ref={containerRef}
-              className="w-full h-full overflow-auto"
+              className="w-full h-full overflow-auto map-fullscreen-container"
               style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -219,7 +332,155 @@ const GuestMapPage = ({ isAdmin, setIsAdmin }) => {
                       />
                     ));
                 })()}
-                {/* ...future overlays for points/zones... */}
+                
+                {/* Points BTS/GSMR pour les invités */}
+                {activeLayers['BTS GSM-R'] && typePoints && typePoints.filter(pt => {
+                  // Filtrer seulement les points BTS GSM-R (existante, HPMV, et nouveau type unifié)
+                  const isBTSPoint = pt.type === 'BTS GSM-R existante' || pt.type === 'BTS GSM-R HPMV' || pt.type === 'BTS GSM-R';
+                  return isBTSPoint && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
+                }).map((point, idx) => {
+                  // Normalisation de l'état pour correspondre aux clés de etatColorMap
+                  const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
+                  const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                  
+                  // Offset vertical selon la voie
+                  let yOffset = 0;
+                  if (point.track) {
+                    const track = String(point.track).toLowerCase().trim();
+                    if (track.includes('mv1') || track.includes('1')) {
+                      yOffset = -30; // Au-dessus pour MV1
+                    } else if (track.includes('mv2') || track.includes('2')) {
+                      yOffset = 30;  // En-dessous pour MV2
+                    }
+                    // Pour d'autres voies, pas d'offset (reste sur la voie)
+                  }
+                  
+                  return (
+                    <div
+                      key={`guest-bts-${idx}`}
+                      className="absolute"
+                      style={{
+                        left: `${point.x * zoom}px`,
+                        top: `${(point.y + yOffset) * zoom}px`,
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 25,
+                        cursor: 'pointer'
+                      }}
+                      title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                    >
+                      <div
+                        style={{
+                          backgroundColor: 'white',
+                          border: `3px solid ${etatColor}`,
+                          borderRadius: '50%',
+                          padding: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                        }}
+                      >
+                        {getTypeIcon(point.type, 20)}
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {/* Points Postes existants pour les invités */}
+                {activeLayers['Postes existants'] && typePoints && typePoints.filter(pt => {
+                  return pt.type === 'Postes existants' && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
+                }).map((point, idx) => {
+                  const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
+                  const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                  
+                  let yOffset = 0;
+                  if (point.track) {
+                    const track = String(point.track).toLowerCase().trim();
+                    if (track.includes('mv1') || track.includes('1')) {
+                      yOffset = -30;
+                    } else if (track.includes('mv2') || track.includes('2')) {
+                      yOffset = 30;
+                    }
+                  }
+                  
+                  return (
+                    <div
+                      key={`guest-postes-${idx}`}
+                      className="absolute"
+                      style={{
+                        left: `${point.x * zoom}px`,
+                        top: `${(point.y + yOffset) * zoom}px`,
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 25,
+                        cursor: 'pointer'
+                      }}
+                      title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                    >
+                      <div
+                        style={{
+                          backgroundColor: 'white',
+                          border: `3px solid ${etatColor}`,
+                          borderRadius: '50%',
+                          padding: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                        }}
+                      >
+                        {getTypeIcon(point.type, 20)}
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {/* Points Centre N2 HPMV pour les invités */}
+                {activeLayers['Centre N2 HPMV'] && typePoints && typePoints.filter(pt => {
+                  return pt.type === 'Centre N2 HPMV' && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
+                }).map((point, idx) => {
+                  const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
+                  const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                  
+                  let yOffset = 0;
+                  if (point.track) {
+                    const track = String(point.track).toLowerCase().trim();
+                    if (track.includes('mv1') || track.includes('1')) {
+                      yOffset = -30;
+                    } else if (track.includes('mv2') || track.includes('2')) {
+                      yOffset = 30;
+                    }
+                  }
+                  
+                  return (
+                    <div
+                      key={`guest-centre-${idx}`}
+                      className="absolute"
+                      style={{
+                        left: `${point.x * zoom}px`,
+                        top: `${(point.y + yOffset) * zoom}px`,
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 25,
+                        cursor: 'pointer'
+                      }}
+                      title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                    >
+                      <div
+                        style={{
+                          backgroundColor: 'white',
+                          border: `3px solid ${etatColor}`,
+                          borderRadius: '50%',
+                          padding: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                        }}
+                      >
+                        {getTypeIcon(point.type, 20)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

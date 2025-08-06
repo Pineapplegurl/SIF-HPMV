@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useToast } from './Toast';
 
 const CoordinateEditor = ({ imgRef, zoom, naturalSize, onNewPoint }) => {
   const [editing, setEditing] = useState(false);
+  const { showToast, ToastContainer } = useToast();
   const [formData, setFormData] = useState({
     type: '',
     name: '',
@@ -66,10 +68,15 @@ const CoordinateEditor = ({ imgRef, zoom, naturalSize, onNewPoint }) => {
     });
 
     if (res.ok) {
+      showToast("Point ajouté avec succès !", "success");
       onNewPoint();        // recharge les points depuis Mongo
       setEditing(false);   // ferme le panneau
+    } else if (res.status === 403) {
+      showToast("Non autorisé : êtes-vous connecté en admin ?", "error");
+    } else if (res.status === 401) {
+      showToast("Token expiré ou invalide. Veuillez vous reconnecter.", "warning");
     } else {
-      alert("Erreur lors de l'ajout du point");
+      showToast("Erreur lors de l'ajout du point", "error");
     }
   };
 
@@ -123,6 +130,7 @@ const CoordinateEditor = ({ imgRef, zoom, naturalSize, onNewPoint }) => {
           </form>
         </div>
       )}
+      <ToastContainer />
     </>
   );
 };

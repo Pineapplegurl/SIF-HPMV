@@ -14,7 +14,7 @@ function App() {
   // activePage est l'état qui mémorise la page active
   // setActivePage est la fonction qui permet de mettre à jour cet état
   const [activePage, setActivePage] = useState(1); // page 1 par défaut
-  const [activeLayers, setActiveLayers] = useState({});
+  const [activeLayers, setActiveLayers] = useState({ "Situation actuelle": true });
   const imageOptions = [
   { id: 'situation-actuelle', label: 'Situation actuelle', src: 'SIF-V6-SIF-EA.png' },
   { id: 'phase-1', label: 'Phase 1', src: 'SIF-V6-PHASE1.png' },
@@ -27,8 +27,7 @@ function App() {
   { id: 'hpmv', label: 'HPMV', src: 'SIF-V3-HPMV.png' },
   { id: 'hpmv-pose', label: 'HPMV pose', src: 'SIF-V3-HPMVPose.png' },
   { id: 'hpmv-depose', label: 'HPMV dépose', src: 'SIF-V3-HPMVDépose.png' },
-  { id: 'gsmr-existante', label: 'BTS GSM-R existante', src: 'BTS-GSM-R-existante.png' },
-  { id: 'gsmr-hpmv', label: 'BTS GSM-R HPMV', src: 'BTS-GSM-R-HPMV.png' },
+  { id: 'bts-gsmr', label: 'BTS GSM-R', src: 'BTS-GSM-R-combined.png' },
   { id: 'postes-existants', label: 'Postes existants', src: 'Postes-existants.png' },
   { id: 'centre-n2-hpmv', label: 'Centre N2 HPMV', src: 'Centre-N2-HPMV.png' },
   { id: 'filets', label: 'Filets', src: 'Filets.png' },
@@ -46,7 +45,12 @@ function App() {
 
   // Ajout détection mode invité : si pas admin, afficher GuestMapPage
   if (!isAdmin) {
-    return <GuestMapPage isAdmin={isAdmin} setIsAdmin={setIsAdmin} />;
+    return <GuestMapPage 
+      isAdmin={isAdmin} 
+      setIsAdmin={setIsAdmin} 
+      activeLayers={activeLayers}
+      setActiveLayers={setActiveLayers}
+    />;
   }
 
   return (
@@ -66,6 +70,7 @@ function App() {
           <PlanViewer
             imageOptions={imageOptions}
             activeLayers={activeLayers}
+            setActiveLayers={setActiveLayers}
             isAdmin={isAdmin}
           />
         </section>

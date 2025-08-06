@@ -4,19 +4,22 @@ export function usePkData() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('http://localhost:5000/api/manual-points');
+      const data = await res.json();
+      setData(data);
+    } catch (err) {
+      console.error('Erreur de récupération des points manuels :', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetch('http://localhost:5000/api/manual-points') 
-      .then((res) => res.json())
-      .then((data) => {
-        setData(data);
-        setLoading(false)
-     
-      })
-      .catch((err) => {
-        console.error('Erreur de récupération des points manuels :', err);
-        setLoading(false);
-      });
+    fetchData();
   }, []);
 
-  return { data, loading };
+  return { data, loading, refetch: fetchData };
 }

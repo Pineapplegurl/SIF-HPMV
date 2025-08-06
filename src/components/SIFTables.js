@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { FaFileExcel } from 'react-icons/fa';
+import SIFExcelImporter from './SIFExcelImporter';
 
 const TABLES = [
   { key: 'interpolation', label: 'Interpolation', api: '/api/manual-points' }, // Affiche les points ajoutés (AddedPoints)
@@ -43,52 +45,17 @@ const SIFTables = ({ isAdmin }) => {
     URL.revokeObjectURL(url);
   };
 
-  // Import CSV
-  const [importPreview, setImportPreview] = useState(null);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importFile, setImportFile] = useState(null);
-  const handleImportCSV = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const text = evt.target.result;
-      const rows = text.split(/\r?\n/).filter(r => r.trim());
-      const cols = rows[0].split(',');
-      const data = rows.slice(1).map(row => {
-        const values = row.split(',');
-        const obj = {};
-        cols.forEach((col, i) => { obj[col] = JSON.parse(values[i] || '""'); });
-        return obj;
-      });
-      setImportPreview({ cols, data });
-      setShowImportModal(true);
-      setImportFile(file);
-    };
-    reader.readAsText(file);
-  };
-  const confirmImport = async () => {
-    setShowImportModal(false);
-    if (!importPreview || !importPreview.data) return;
+  // Import CSV - supprimé car géré par l'import Excel
+  const [showExcelImporter, setShowExcelImporter] = useState(false);
+  const refreshTable = () => {
     const table = TABLES.find(t => t.key === selectedTable);
     if (!table) return;
-    try {
-      const res = await fetch(`http://localhost:5000${table.api}/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify({ data: importPreview.data })
-      });
-      if (res.ok) {
-        alert('Import réussi !');
-        setSelectedTable(selectedTable); // recharge la table
-      } else {
-        alert('Erreur lors de l’import.');
-      }
-    } catch {
-      alert('Erreur réseau.');
-    }
-    setImportPreview(null);
-    setImportFile(null);
+    setLoading(true);
+    fetch(`http://localhost:5000${table.api}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setTableData(Array.isArray(data) ? data : []))
+      .catch(() => setTableData([]))
+      .finally(() => setLoading(false));
   };
 
   // Affichage dynamique des colonnes
@@ -122,13 +89,12 @@ const SIFTables = ({ isAdmin }) => {
             <div className="flex gap-3">
               <button className="bg-green-600 text-white px-5 py-2 rounded-lg shadow hover:bg-green-700 flex items-center gap-2 font-semibold" onClick={handleExportCSV}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Exporter
+                Exporter CSV
               </button>
-              <button className="bg-[#1A237E] text-white px-5 py-2 rounded-lg shadow hover:bg-blue-900 flex items-center gap-2 font-semibold" onClick={() => document.getElementById('import-csv-input').click()}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v-4a4 4 0 014-4h8a4 4 0 014 4v4" /></svg>
-                Importer
+              <button className="bg-orange-600 text-white px-5 py-2 rounded-lg shadow hover:bg-orange-700 flex items-center gap-2 font-semibold" onClick={() => setShowExcelImporter(true)}>
+                <FaFileExcel />
+                Importer Excel
               </button>
-              <input id="import-csv-input" type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImportCSV} />
             </div>
           )}
         </div>
@@ -169,35 +135,16 @@ const SIFTables = ({ isAdmin }) => {
             )}
           </div>
         </div>
-        {/* Modal import CSV */}
-        {showImportModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded shadow-lg w-[500px]">
-              <h2 className="text-lg font-bold mb-4">Confirmer l’import CSV</h2>
-              <p className="mb-2">Vous allez écraser la table <b>{TABLES.find(t => t.key === selectedTable)?.label}</b> avec le fichier : <b>{importFile?.name}</b></p>
-              <div className="overflow-auto max-h-64 border rounded mb-4">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr>
-                      {importPreview?.cols.map(col => <th key={col} className="border-b px-2 py-1">{col}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {importPreview?.data.slice(0, 10).map((row, idx) => (
-                      <tr key={idx}>
-                        {importPreview.cols.map(col => <td key={col} className="px-2 py-1">{row[col]}</td>)}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {importPreview?.data.length > 10 && <div className="text-gray-500 text-xs mt-2">...et {importPreview.data.length - 10} lignes supplémentaires</div>}
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button className="bg-gray-300 px-4 py-1 rounded" onClick={() => setShowImportModal(false)}>Annuler</button>
-                <button className="bg-[#1A237E] text-white px-4 py-1 rounded" onClick={confirmImport}>Confirmer l’import</button>
-              </div>
-            </div>
-          </div>
+        {/* Modal Excel Importer */}
+        {showExcelImporter && (
+          <SIFExcelImporter
+            tableType={selectedTable}
+            onImportComplete={() => {
+              setShowExcelImporter(false);
+              refreshTable();
+            }}
+            onClose={() => setShowExcelImporter(false)}
+          />
         )}
       </main>
     </div>

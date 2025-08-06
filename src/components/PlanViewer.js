@@ -5,7 +5,8 @@ import { interpolateData } from '../utils/interpolateData';
 import { Document, Page, pdfjs } from 'react-pdf';
 import ZoneTable from './ZoneTable';
 import { useTypePoints } from '../hooks/useTypePoints';
-import { FaWifi, FaBroadcastTower, FaLayerGroup, FaTrain, FaTrash } from 'react-icons/fa';
+import { FaWifi, FaBroadcastTower, FaLayerGroup, FaTrain, FaTrash, FaDesktop, FaServer, FaBuilding, FaCog, FaPlus, FaMinus, FaExpand, FaCompress, FaEye, FaEyeSlash, FaEdit, FaLock } from 'react-icons/fa';
+import { useToast } from './Toast';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
@@ -21,15 +22,17 @@ const layerImageMap = {
   "HPMV": "SIF-V3-HPMV.png",
   "HPMV pose": "SIF-V3-HPMVPose.png",
   "HPMV dépose": "SIF-V3-HPMVDépose.png",
-  "BTS GSM-R existante": "BTS-GSM-R-existante.png",
-  "BTS GSM-R HPMV": "BTS-GSM-R-HPMV.png",
-  "Postes existants": "Postes-existants.png",
-  "Centre N2 HPMV": "Centre-N2-HPMV.png",
   "Filets": "Filets.png",
   "Zones d'actions": "Zones-actions.png",
   "Zones de postes": "Zones-postes.png",
-  "PDF": "SIF-V6.PDF" // ne marche pas
+  "PDF": "SIF-V6.PDF"
 };
+
+// Calques qui contrôlent l'affichage des points (pas des images)
+const pointLayers = ["BTS GSM-R", "Postes existants", "Centre N2 HPMV"];
+
+// Liste complète des calques (images + points)
+const allLayers = [...Object.keys(layerImageMap), ...pointLayers];
 
 function CalquesCollapsible({ layers, activeLayers, setActiveLayers }) {
   // Par défaut, calques masqués (collapsed)
@@ -74,6 +77,7 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
   const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 });
   const [zones, setZones] = useState([]);
   const { typePoints, loading: loadingTypePoints, refetch: refetchTypePoints } = useTypePoints();
+  const { showToast, ToastContainer } = useToast();
   useEffect(() => {
   }, []);
   const { manualPoints, loading: loadingManual, refetch } = useManualPoints();
@@ -83,6 +87,12 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
   const [selectedPoint, setSelectedPoint] = useState(null);
   // État pour éditer le point sélectionné (cloné pour édition)
   const [editedPoint, setEditedPoint] = useState(null);
+  
+  // États pour le drag & drop des points
+  const [editMode, setEditMode] = useState(false);
+  const [draggingPoint, setDraggingPoint] = useState(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  
   // Quand selectedPoint change, on clone ses valeurs pour édition
   useEffect(() => {
     if (selectedPoint) {
@@ -182,17 +192,17 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
         body: JSON.stringify(editedPoint),
       });
       if (res.ok) {
-        alert("Modifications enregistrées !");
+        showToast("Modifications enregistrées !", "success");
         setSelectedPoint(null);
         setEditedPoint(null);
         refetch();
       } else if (res.status === 401) {
-        alert("Non autorisé : êtes-vous connecté en admin ?");
+        showToast("Non autorisé : êtes-vous connecté en admin ?", "error");
       } else {
-        alert("AHHHHHHHH ALED");
+        showToast("Erreur lors de la modification", "error");
       }
     } catch (error) {
-      alert("Erreur réseau.");
+      showToast("Erreur réseau", "error");
     }
   };
 
@@ -209,17 +219,104 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
 
       if (res.ok) {
         console.log('Point supprimé');
+        showToast("Point supprimé avec succès", "success");
         refetch(); // recharge la liste
       } else if (res.status === 401) {
-        alert("Non autorisé : êtes-vous connecté en admin ?");
+        showToast("Non autorisé : êtes-vous connecté en admin ?", "error");
       } else {
-        alert("Erreur lors de la suppression.");
+        showToast("Erreur lors de la suppression", "error");
       }
     } catch (error) {
       console.error("Erreur de suppression :", error);
-      alert("Erreur réseau.");
+      showToast("Erreur réseau", "error");
     }
   };
+
+  // Fonctions pour le drag & drop des points
+  const handlePointMouseDown = (e, point) => {
+    if (!editMode) return;
+    e.stopPropagation();
+    e.preventDefault();
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const pointX = point.x * zoom;
+    const pointY = point.y * zoom;
+    const mouseX = e.clientX - rect.left + containerRef.current.scrollLeft;
+    const mouseY = e.clientY - rect.top + containerRef.current.scrollTop;
+    
+    setDraggingPoint(point);
+    setDragOffset({
+      x: mouseX - pointX,
+      y: mouseY - pointY
+    });
+  };
+
+  const handlePointMouseMove = (e) => {
+    if (!draggingPoint || !editMode) return;
+    e.preventDefault();
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left + containerRef.current.scrollLeft;
+    const mouseY = e.clientY - rect.top + containerRef.current.scrollTop;
+    
+    const newX = (mouseX - dragOffset.x) / zoom;
+    const newY = (mouseY - dragOffset.y) / zoom;
+    
+    // Mise à jour temporaire pour la visualisation
+    setDraggingPoint(prev => ({
+      ...prev,
+      x: newX,
+      y: newY
+    }));
+  };
+
+  const handlePointMouseUp = async () => {
+    if (!draggingPoint || !editMode) return;
+    
+    try {
+      // Mise à jour dans la base de données
+      const res = await fetch(`http://localhost:5000/api/update-point/${draggingPoint._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          ...draggingPoint,
+          x: draggingPoint.x,
+          y: draggingPoint.y
+        }),
+      });
+      
+      if (res.ok) {
+        // Recharger les points pour mettre à jour l'interpolation
+        refetch();
+        showToast("Point déplacé avec succès", "success");
+        console.log('Point déplacé avec succès');
+      } else {
+        showToast("Erreur lors de la mise à jour du point", "error");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour :", error);
+      showToast("Erreur réseau", "error");
+    }
+    
+    setDraggingPoint(null);
+    setDragOffset({ x: 0, y: 0 });
+  };
+
+  // Ajouter les event listeners pour le drag global
+  useEffect(() => {
+    if (draggingPoint && editMode) {
+      document.addEventListener('mousemove', handlePointMouseMove);
+      document.addEventListener('mouseup', handlePointMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handlePointMouseMove);
+        document.removeEventListener('mouseup', handlePointMouseUp);
+      };
+    }
+  }, [draggingPoint, editMode, dragOffset, zoom]);
 
   const selectedPlan = imageOptions[0];
 
@@ -233,7 +330,6 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
   });
   const [btsLoading, setBtsLoading] = useState(false);
   const [btsError, setBtsError] = useState('');
-  const [btsSuccess, setBtsSuccess] = useState(false);
 
   // --- Additional state for BTS/GSMR and zones ---
   const [savedTypePoints, setSavedTypePoints] = useState([]);
@@ -310,7 +406,7 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
       for (let i = 0; i < allPoints.length - 1; i++) {
         const p1 = allPoints[i];
         const p2 = allPoints[i + 1];
-        if (p1.pk <= pkNum && pkNum <= p2.pk) {
+        if (p1.pk <= p2.pk) {
           // Interpolation linéaire
           const t = (pkNum - p1.pk) / (p2.pk - p1.pk);
           const x = p1.x + t * (p2.x - p1.x);
@@ -336,22 +432,40 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
     }
   }, [btsForm.pk, btsForm.line, btsForm.track, validManualPoints, interpolatedPoints]);
 
-  // Icon mapping by type
-  const typeIconMap = {
-    'BTS GSM-R existante': '/icons/BTS-existante.png',
-    'BTS GSM-R HPMV': '/icons/BTS-HPMV.png',
-    'Postes existants': '/icons/Poste.png',
-    'Centre N2 HPMV': '/icons/CentreN2.png',
-    'BTS': '/icons/GSM.png', // fallback
-    'GSMR': '/icons/GSM.png', // fallback
+  // Icon component and color mapping by type
+  const getTypeIcon = (type, size = 24) => {
+    const iconProps = { size: size, style: { filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' } };
+    
+    switch (type) {
+      case 'BTS GSM-R':
+      case 'BTS GSM-R existante':
+      case 'BTS GSM-R HPMV':
+        return <FaBroadcastTower {...iconProps} color="#1976D2" />; // Bleu - Antenne/Tour
+      case 'Postes existants':
+        return <FaBuilding {...iconProps} color="#1976D2" />; // Bleu - Poste/Bâtiment ferroviaire
+      case 'Centre N2 HPMV':
+        return <FaCog {...iconProps} color="#1976D2" />; // Bleu - Centre technique/Équipement
+      default:
+        return <FaBroadcastTower {...iconProps} color="#1976D2" />; // Bleu par défaut
+    }
   };
-  // Color mapping by Etats
+
+  // Color mapping by Etats (border colors)
   const etatColorMap = {
-    'Etude': 'orange',
-    'Réalisation': 'green',
-    'Mis en service': 'blue',
-    'Exploitation': 'blue',
+    'Etude': '#FF9800', // Orange
+    'Réalisation': '#4CAF50', // Vert
+    'Mis en service': '#2196F3', // Bleu
+    'Exploitation': '#2196F3', // Bleu
   };
+
+  // Debug: log des états pour vérifier les valeurs
+  useEffect(() => {
+    if (typePoints && typePoints.length > 0) {
+      const etats = [...new Set(typePoints.map(p => p.Etats).filter(Boolean))];
+      console.log('États trouvés dans les points BTS/GSMR:', etats);
+      console.log('États supportés dans etatColorMap:', Object.keys(etatColorMap));
+    }
+  }, [typePoints]);
 
   // Helper: generate random color
 function getRandomColor(existingColors = []) {
@@ -461,6 +575,33 @@ useEffect(() => {
     return () => { cancelled = true; };
   }, [zones]);
 
+  // Vérifier si l'utilisateur est bien connecté en admin
+  const isTokenValid = () => {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+    
+    try {
+      // Vérification basique du format JWT (3 parties séparées par des points)
+      const parts = token.split('.');
+      if (parts.length !== 3) return false;
+      
+      // Décodage de la payload pour vérifier l'expiration
+      const payload = JSON.parse(atob(parts[1]));
+      const now = Date.now() / 1000;
+      
+      return payload.exp > now;
+    } catch {
+      return false;
+    }
+  };
+
+  // Afficher un avertissement si le token n'est pas valide
+  useEffect(() => {
+    if (isAdmin && !isTokenValid()) {
+      showToast('Votre session a expiré. Veuillez vous reconnecter pour effectuer des modifications.', 'warning', 5000);
+    }
+  }, [isAdmin]);
+
   return (
     <div className="flex flex-row w-full max-w-[1400px] mx-auto pt-8">
       {/* Sidebar (calques + légende) toujours visible */}
@@ -469,7 +610,7 @@ useEffect(() => {
         <div className="w-full bg-white rounded-xl shadow border border-gray-200 p-4 mb-4">
           <h3 className="text-lg font-bold text-blue-900 mb-3 text-center w-full">Calques</h3>
           <CalquesCollapsible
-            layers={Object.keys(layerImageMap)}
+            layers={allLayers}
             activeLayers={activeLayers}
             setActiveLayers={setActiveLayers}
           />
@@ -478,9 +619,63 @@ useEffect(() => {
         <div className="w-full bg-white rounded-xl shadow border border-gray-200 p-4 flex flex-col items-center justify-center">
           <h3 className="text-lg font-bold text-blue-900 mb-3 text-center w-full">Légende</h3>
           <div className="flex flex-col gap-3 items-center">
-            <div className="flex items-center gap-2 text-base"><FaBroadcastTower className="text-blue-700 text-lg" /> <span className="font-medium text-gray-700">Relais GSM-R</span></div>
-            <div className="flex items-center gap-2 text-base"><FaLayerGroup className="text-blue-400 text-lg" /> <span className="font-medium text-gray-700">TEST</span></div>
-            <div className="flex items-center gap-2 text-base"><FaTrain className="text-gray-500 text-lg" /> <span className="font-medium text-gray-700">TEST</span></div>
+            <div className="flex items-center gap-2 text-base">
+              <div style={{
+                backgroundColor: 'white',
+                borderRadius: '50%',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <FaBroadcastTower color="#1976D2" size={16} />
+              </div>
+              <span className="font-medium text-gray-700">BTS GSM-R</span>
+            </div>
+            <div className="flex items-center gap-2 text-base">
+              <div style={{
+                backgroundColor: 'white',
+                borderRadius: '50%',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <FaBuilding color="#1976D2" size={16} />
+              </div>
+              <span className="font-medium text-gray-700">Postes existants</span>
+            </div>
+            <div className="flex items-center gap-2 text-base">
+              <div style={{
+                backgroundColor: 'white',
+                borderRadius: '50%',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <FaCog color="#1976D2" size={16} />
+              </div>
+              <span className="font-medium text-gray-700">Centre N2 HPMV</span>
+            </div>
+            <div className="mt-2 text-sm text-gray-600">
+
+              <div className="flex items-center gap-2 mt-2">
+                <span className="font-semibold">Bordures :</span>
+              </div>
+              <div className="flex items-center gap-1 mt-1">
+                <div className="w-3 h-3 rounded-full border-2" style={{borderColor: '#FF9800'}}></div>
+                <span>Étude</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full border-2" style={{borderColor: '#4CAF50'}}></div>
+                <span>Réalisation</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full border-2" style={{borderColor: '#2196F3'}}></div>
+                <span>Mis en service</span>
+              </div>
+            </div>
           </div>
         </div>
       </aside>
@@ -530,44 +725,120 @@ useEffect(() => {
               </div>
             )}
           </div>
-          {/* Toggle interpolation button */}
-          <button
-            className={`px-4 py-2 rounded-lg font-semibold shadow border border-blue-200 bg-white hover:bg-blue-50 text-blue-900 transition ${showInterpolatedPoints ? '' : 'opacity-60'}`}
-            onClick={() => setShowInterpolatedPoints(v => !v)}
-          >
-            {showInterpolatedPoints ? 'Masquer interpolation' : 'Afficher interpolation'}
-          </button>
         </div>
         {/* Harmonized map container logic: strictly match GuestMapPage.js */}
         <div className="relative max-w-[1000px] w-full h-[600px] border-4 border-[#1A237E] rounded-lg bg-white shadow-lg">
-          <div className="absolute top-4 right-4 z-30 flex gap-2 bg-white/80 p-1 rounded shadow">
-            <button onClick={handleZoomIn} className="bg-[#1A237E] text-white px-3 py-1 rounded hover:bg-[#16205c] transition-colors">+</button>
-            <button onClick={handleZoomOut} className="bg-[#1A237E] text-white px-3 py-1 rounded hover:bg-[#16205c] transition-colors">-</button>
-            <button onClick={handleResetZoom} className="bg-[#1A237E] text-white px-3 py-1 rounded hover:bg-[#16205c] transition-colors">Reset</button>
-            <button
-              className="bg-[#1A237E] text-white px-3 py-1 rounded hover:bg-[#16205c] transition-colors"
-              onClick={() => {
-                const el = document.querySelector('.map-fullscreen-container');
-                if (!document.fullscreenElement) {
-                  el?.requestFullscreen();
-                } else {
-                  document.exitFullscreen();
-                }
-              }}
-              aria-label="Plein écran"
-            >
-              Plein écran
-            </button>
+          {/* Notification mode édition */}
+          {editMode && (
+            <div className="absolute top-4 left-4 z-40 bg-orange-100 border border-orange-300 text-orange-800 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+              <span className="text-lg">✏️</span>
+              <span className="font-semibold">Mode édition activé</span>
+              <span className="text-sm">- Glissez-déposez les points bleus pour les déplacer</span>
+            </div>
+          )}
+          
+          {/* Floating Action Bar - Compact et élégant */}
+          <div className="absolute top-4 right-4 z-30">
+            {/* Barre horizontale compacte avec tous les contrôles */}
+            <div className="flex items-center gap-1 bg-white/95 backdrop-blur-sm p-2 rounded-xl shadow-lg border border-gray-200">
+              {/* Groupe zoom avec séparateur visuel */}
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={handleZoomIn} 
+                  className="bg-[#1A237E] text-white p-2 rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  title="Zoom avant"
+                  aria-label="Zoom avant"
+                >
+                  <FaPlus size={14} />
+                </button>
+                <button 
+                  onClick={handleZoomOut} 
+                  className="bg-[#1A237E] text-white p-2 rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  title="Zoom arrière"
+                  aria-label="Zoom arrière"
+                >
+                  <FaMinus size={14} />
+                </button>
+                <button 
+                  onClick={handleResetZoom} 
+                  className="bg-gray-600 text-white px-2 py-2 rounded-lg hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  title="Réinitialiser le zoom"
+                  aria-label="Réinitialiser le zoom"
+                >
+                  <span className="text-xs font-bold">1:1</span>
+                </button>
+              </div>
+
+              {/* Séparateur visuel */}
+              <div className="w-px h-8 bg-gray-300 mx-1"></div>
+
+              {/* Actions d'affichage */}
+              <div className="flex items-center gap-1">
+                <button
+                  className={`p-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 ${
+                    showInterpolatedPoints 
+                      ? 'bg-green-600 text-white hover:bg-green-700' 
+                      : 'bg-gray-300 text-gray-600 hover:bg-gray-400'
+                  }`}
+                  onClick={() => setShowInterpolatedPoints(v => !v)}
+                  title={showInterpolatedPoints ? 'Masquer interpolation' : 'Afficher interpolation'}
+                  aria-label="Basculer l'affichage de l'interpolation"
+                >
+                  {showInterpolatedPoints ? <FaEye size={14} /> : <FaEyeSlash size={14} />}
+                </button>
+                
+                <button
+                  className="bg-[#1A237E] text-white p-2 rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  onClick={() => {
+                    const el = document.querySelector('.map-fullscreen-container');
+                    if (!document.fullscreenElement) {
+                      el?.requestFullscreen();
+                    } else {
+                      document.exitFullscreen();
+                    }
+                  }}
+                  title="Plein écran"
+                  aria-label="Plein écran"
+                >
+                  <FaExpand size={14} />
+                </button>
+              </div>
+
+              {/* Mode édition (Admin seulement) avec séparateur */}
+              {isAdmin && (
+                <>
+                  <div className="w-px h-8 bg-gray-300 mx-1"></div>
+                  <button
+                    className={`p-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 ${
+                      editMode 
+                        ? 'bg-orange-500 text-white hover:bg-orange-600' 
+                        : 'bg-gray-300 text-gray-600 hover:bg-gray-400'
+                    }`}
+                    onClick={() => setEditMode(v => !v)}
+                    title={editMode ? 'Verrouiller' : 'Mode édition'}
+                    aria-label="Basculer le mode édition"
+                  >
+                    {editMode ? <FaEdit size={14} /> : <FaLock size={14} />}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           <div
             ref={containerRef}
             className="w-full h-full overflow-auto relative map-fullscreen-container"
-            style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+            style={{ 
+              cursor: isDragging ? 'grabbing' : (editMode ? 'crosshair' : 'grab'),
+              backgroundColor: 'white' // Fond blanc pour la visibilité des calques transparents
+            }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
             onClick={(e) => {
+              // Ne pas ajouter de point en mode édition
+              if (editMode) return;
+              
               const rect = e.currentTarget.getBoundingClientRect();
               const x = (e.clientX - rect.left + containerRef.current.scrollLeft) / zoom;
               const y = (e.clientY - rect.top + containerRef.current.scrollTop) / zoom;
@@ -667,7 +938,7 @@ useEffect(() => {
                 })}
               </svg>
               {Object.entries(activeLayers)
-                .filter(([layer, visible]) => visible && layer !== 'Situation actuelle')
+                .filter(([layer, visible]) => visible && layer !== 'Situation actuelle' && layerImageMap[layer])
                 .map(([layer]) => {
                   const src = `/${layerImageMap[layer]}`;
                   return (
@@ -689,23 +960,48 @@ useEffect(() => {
                   );
                 })}
               {/* Pastilles bleues (points ajoutés) */}
-              {isAdmin && validManualPoints && validManualPoints.filter(pt => pt.x !== undefined && pt.y !== undefined).map((point, idx) => (
-                <div
-                  key={idx}
-                  className="absolute bg-blue-600 border border-white rounded-full"
-                  title={`PK ${point.pk || 'Inconnu'}`}
-                  style={{
-                    width: '10px',
-                    height: '10px',
-                    left: `${point.x * zoom}px`,
-                    top: `${point.y * zoom}px`,
-                    transform: 'translate(-50%, -50%)',
-                    zIndex: 30,
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => handleDelete(point._id)}
-                />
-              ))}
+              {isAdmin && validManualPoints && validManualPoints.filter(pt => pt.x !== undefined && pt.y !== undefined).map((point, idx) => {
+                // Utiliser la position du point en cours de déplacement si c'est celui qu'on traîne
+                const displayPoint = draggingPoint && draggingPoint._id === point._id ? draggingPoint : point;
+                
+                return (
+                  <div
+                    key={point._id || idx}
+                    className={`absolute border border-white rounded-full transition-all duration-150 ${
+                      editMode 
+                        ? 'bg-orange-500 hover:bg-orange-600 shadow-lg' 
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    } ${draggingPoint && draggingPoint._id === point._id ? 'scale-125 shadow-xl' : ''}`}
+                    title={editMode 
+                      ? `Drag pour déplacer - PK ${point.pk || 'Inconnu'}` 
+                      : `Clic pour supprimer - PK ${point.pk || 'Inconnu'}`
+                    }
+                    style={{
+                      width: editMode ? '14px' : '10px',
+                      height: editMode ? '14px' : '10px',
+                      left: `${displayPoint.x * zoom}px`,
+                      top: `${displayPoint.y * zoom}px`,
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: draggingPoint && draggingPoint._id === point._id ? 50 : 30,
+                      cursor: editMode ? 'grab' : 'pointer',
+                    }}
+                    onMouseDown={(e) => editMode ? handlePointMouseDown(e, point) : null}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!editMode) {
+                        // Si pas en mode édition, on sélectionne le point dans le tableau
+                        setSelectedPoint(point);
+                      }
+                    }}
+                    onDoubleClick={(e) => {
+                      if (!editMode) {
+                        e.stopPropagation();
+                        handleDelete(point._id);
+                      }
+                    }}
+                  />
+                );
+              })}
               {/* Points d'interpolation (rouges) */}
               {isAdmin && showInterpolatedPoints && interpolatedPoints && interpolatedPoints.map((point, idx) => (
                 <div
@@ -722,6 +1018,156 @@ useEffect(() => {
                   title={`Interp PK ${point.pk?.toFixed(3)}`}
                 />
               ))}
+              
+              {/* Points BTS/GSMR */}
+              {isAdmin && activeLayers['BTS GSM-R'] && typePoints && typePoints.filter(pt => {
+                // Filtrer seulement les points BTS GSM-R (existante, HPMV, et nouveau type unifié)
+                const isBTSPoint = pt.type === 'BTS GSM-R existante' || pt.type === 'BTS GSM-R HPMV' || pt.type === 'BTS GSM-R';
+                return isBTSPoint && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
+              }).map((point, idx) => {
+                // Normalisation de l'état pour correspondre aux clés de etatColorMap
+                const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
+                const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                
+                // Offset vertical selon la voie
+                let yOffset = 0;
+                if (point.track) {
+                  const track = String(point.track).toLowerCase().trim();
+                  if (track.includes('mv1') || track.includes('1')) {
+                    yOffset = -30; // Au-dessus pour MV1
+                  } else if (track.includes('mv2') || track.includes('2')) {
+                    yOffset = 30;  // En-dessous pour MV2
+                  }
+                  // Pour d'autres voies, pas d'offset (reste sur la voie)
+                }
+                
+                return (
+                  <div
+                    key={`bts-${idx}`}
+                    className="absolute"
+                    style={{
+                      left: `${point.x * zoom}px`,
+                      top: `${(point.y + yOffset) * zoom}px`,
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 25,
+                      cursor: 'pointer'
+                    }}
+                    title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                  >
+                    <div
+                      style={{
+                        backgroundColor: 'white',
+                        border: `3px solid ${etatColor}`,
+                        borderRadius: '50%',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                      }}
+                    >
+                      {getTypeIcon(point.type, 20)}
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* Points Postes existants */}
+              {isAdmin && activeLayers['Postes existants'] && typePoints && typePoints.filter(pt => {
+                return pt.type === 'Postes existants' && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
+              }).map((point, idx) => {
+                const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
+                const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                
+                let yOffset = 0;
+                if (point.track) {
+                  const track = String(point.track).toLowerCase().trim();
+                  if (track.includes('mv1') || track.includes('1')) {
+                    yOffset = -30;
+                  } else if (track.includes('mv2') || track.includes('2')) {
+                    yOffset = 30;
+                  }
+                }
+                
+                return (
+                  <div
+                    key={`postes-${idx}`}
+                    className="absolute"
+                    style={{
+                      left: `${point.x * zoom}px`,
+                      top: `${(point.y + yOffset) * zoom}px`,
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 25,
+                      cursor: 'pointer'
+                    }}
+                    title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                  >
+                    <div
+                      style={{
+                        backgroundColor: 'white',
+                        border: `3px solid ${etatColor}`,
+                        borderRadius: '50%',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                      }}
+                    >
+                      {getTypeIcon(point.type, 20)}
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* Points Centre N2 HPMV */}
+              {isAdmin && activeLayers['Centre N2 HPMV'] && typePoints && typePoints.filter(pt => {
+                return pt.type === 'Centre N2 HPMV' && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
+              }).map((point, idx) => {
+                const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
+                const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                
+                let yOffset = 0;
+                if (point.track) {
+                  const track = String(point.track).toLowerCase().trim();
+                  if (track.includes('mv1') || track.includes('1')) {
+                    yOffset = -30;
+                  } else if (track.includes('mv2') || track.includes('2')) {
+                    yOffset = 30;
+                  }
+                }
+                
+                return (
+                  <div
+                    key={`centre-${idx}`}
+                    className="absolute"
+                    style={{
+                      left: `${point.x * zoom}px`,
+                      top: `${(point.y + yOffset) * zoom}px`,
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 25,
+                      cursor: 'pointer'
+                    }}
+                    title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                  >
+                    <div
+                      style={{
+                        backgroundColor: 'white',
+                        border: `3px solid ${etatColor}`,
+                        borderRadius: '50%',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                      }}
+                    >
+                      {getTypeIcon(point.type, 20)}
+                    </div>
+                  </div>
+                );
+              })}
+              
               {/* Ajoute ici d'autres overlays si besoin */}
               {isAdmin && (
                 <CoordinateEditor
@@ -857,10 +1303,11 @@ useEffect(() => {
               </div>
             </div>
             {/* Tableau des points BTS/GSMR ajoutés juste sous le formulaire */}
-            <div className="w-[1000px] mt-8 bg-white rounded-2xl border border-blue-100 p-6 shadow-xl transition-all duration-200 overflow-x-auto">
+            <div className="w-[1000px] mt-8 bg-white rounded-2xl border border-blue-100 p-6 shadow-xl transition-all duration-200">
               <h2 className="text-xl font-bold mb-2 text-blue-900 flex items-center gap-2">Points BTS/GSMR ajoutés</h2>
               <hr className="mb-4 border-blue-100" />
-              <table className="w-full min-w-[900px] table-fixed text-sm rounded-xl overflow-hidden">
+              <div className="overflow-x-auto overflow-y-auto max-h-[400px] border border-gray-200 rounded-lg">
+                <table className="w-full min-w-[900px] table-fixed text-sm">
                 <thead>
                   <tr className="bg-blue-50 text-blue-900 font-semibold">
                     <th className="py-2 px-3 text-left border-r border-blue-100">Nom</th>
@@ -914,12 +1361,17 @@ useEffect(() => {
                                       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                                     });
                                     if (res.ok) {
+                                      showToast("Point BTS/GSMR supprimé avec succès", "success");
                                       if (typeof refetchTypePoints === 'function') refetchTypePoints();
+                                    } else if (res.status === 403) {
+                                      showToast('Non autorisé : êtes-vous connecté en admin ?', "error");
+                                    } else if (res.status === 401) {
+                                      showToast('Token expiré. Veuillez vous reconnecter.', "warning");
                                     } else {
-                                      alert('Erreur lors de la suppression.');
+                                      showToast('Erreur lors de la suppression', "error");
                                     }
                                   } catch {
-                                    alert('Erreur réseau.');
+                                    showToast('Erreur réseau', "error");
                                   }
                                 }
                               }}
@@ -942,8 +1394,7 @@ useEffect(() => {
                     <td className="px-3 py-2 text-center border-r border-blue-50">
                       <select name="type" required className="border px-3 py-1 rounded w-[110px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.type} onChange={e => setBtsForm(f => ({ ...f, type: e.target.value }))}>
                         <option value="">Type</option>
-                        <option value="BTS GSM-R existante">BTS GSM-R existante</option>
-                        <option value="BTS GSM-R HPMV">BTS GSM-R HPMV</option>
+                        <option value="BTS GSM-R">BTS GSM-R</option>
                         <option value="Postes existants">Postes existants</option>
                         <option value="Centre N2 HPMV">Centre N2 HPMV</option>
                       </select>
@@ -1011,10 +1462,16 @@ useEffect(() => {
                               setBtsForm({ name: '', type: '', pk: '', x: '', y: '', line: '', track: '', info: '', Etats: '' });
                               setBtsError('');
                               if (typeof refetchTypePoints === 'function') refetchTypePoints();
-                              setBtsSuccess(true);
-                              setTimeout(() => setBtsSuccess(false), 2000);
+                              showToast("Point BTS/GSMR ajouté avec succès !", "success");
+                            } else if (res.status === 403) {
+                              setBtsError('Non autorisé : êtes-vous connecté en admin ?');
+                              showToast('Non autorisé : êtes-vous connecté en admin ?', 'error');
+                            } else if (res.status === 401) {
+                              setBtsError('Token expiré. Veuillez vous reconnecter.');
+                              showToast('Token expiré. Veuillez vous reconnecter.', 'warning');
                             } else {
-                              setBtsError('Erreur à l’ajout (êtes-vous en admin ?)');
+                              setBtsError('Erreur à l\'ajout');
+                              showToast('Erreur lors de l\'ajout du point BTS/GSMR', 'error');
                             }
                           } catch (err) {
                             setBtsError('Erreur réseau.');
@@ -1029,13 +1486,8 @@ useEffect(() => {
                   </tr>
                 </tbody>
               </table>
+              </div>
               {btsError && <div className="text-red-600 font-bold mt-2">{btsError}</div>}
-              {btsSuccess && (
-                <div className="flex items-center text-green-600 font-bold mt-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                  Point ajouté avec succès !
-                </div>
-              )}
             </div>
             <div >
               <ZoneTable 
@@ -1058,6 +1510,7 @@ useEffect(() => {
           </div>
         )}
       </div> {/* End main content column */}
+      <ToastContainer />
     </div> 
   );
 }

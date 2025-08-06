@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 
 const ZoneTable = ({ zones, onZonesUpdate }) => {
   const [localZones, setLocalZones] = useState(zones || []);
@@ -6,6 +7,7 @@ const ZoneTable = ({ zones, onZonesUpdate }) => {
     type: '', name: '', line: '', track: '', pkStart: '', pkEnd: '', xsif: '', ysif: '', info: ''
   });
   const [loading, setLoading] = useState(false);
+  const { showToast, ToastContainer } = useToast();
 
   useEffect(() => {
     // Synchronise avec la prop zones
@@ -37,17 +39,18 @@ const ZoneTable = ({ zones, onZonesUpdate }) => {
     setLoading(false);
     if (res.ok) {
       setNewZone({ type: '', name: '', line: '', track: '', pkStart: '', pkEnd: '', xsif: '', ysif: '', info: '' });
+      showToast('Zone ajoutée avec succès', 'success');
       refreshZones();
     } else if (res.status === 403) {
-      alert('Non autorisé : êtes-vous connecté en admin ?');
+      showToast('Non autorisé : êtes-vous connecté en admin ?', 'error');
     } else {
-      alert('Erreur lors de l\'ajout de la zone.');
+      showToast('Erreur lors de l\'ajout de la zone', 'error');
     }
   };
 
   const handleDeleteZone = async (zone) => {
     if (!zone._id) {
-      alert('Zone sans identifiant, suppression impossible côté backend.');
+      showToast('Zone sans identifiant, suppression impossible côté backend', 'warning');
       return;
     }
     if (window.confirm('Supprimer cette zone ?')) {
@@ -59,21 +62,23 @@ const ZoneTable = ({ zones, onZonesUpdate }) => {
           }
         });
         if (res.ok) {
+          showToast('Zone supprimée avec succès', 'success');
           refreshZones();
         } else {
-          alert('Erreur lors de la suppression côté backend.');
+          showToast('Erreur lors de la suppression côté backend', 'error');
         }
       } catch {
-        alert('Erreur réseau.');
+        showToast('Erreur réseau', 'error');
       }
     }
   };
 
   return (
-    <div className="w-[1000px] overflow-x-auto mt-8 bg-white rounded-2xl border border-blue-100 p-6 shadow-xl transition-all duration-200">
+    <div className="w-[1000px] mt-8 bg-white rounded-2xl border border-blue-100 p-6 shadow-xl transition-all duration-200">
       <h2 className="text-xl font-bold mb-2 text-blue-900 flex items-center gap-2">Zones</h2>
       <hr className="mb-4 border-blue-100" />
-      <table className="min-w-[900px] table-fixed w-full text-sm rounded-xl overflow-hidden">
+      <div className="overflow-x-auto overflow-y-auto max-h-[400px] border border-gray-200 rounded-lg">
+        <table className="min-w-[900px] table-fixed w-full text-sm">
         <thead>
           <tr className="bg-blue-50 text-blue-900 font-semibold">
             <th className="py-2 px-3">Type</th>
@@ -149,6 +154,8 @@ const ZoneTable = ({ zones, onZonesUpdate }) => {
           </tr>
         </tbody>
       </table>
+      </div>
+      <ToastContainer />
     </div>
   );
 };
