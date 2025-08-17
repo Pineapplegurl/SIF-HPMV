@@ -1,5 +1,16 @@
 import * as d3 from 'd3-interpolate';
 export function interpolateData(pkArray, xArray, yArray, step = 0.1) {
+  // Validation minimale pour éviter l'erreur de d3.interpolateBasis
+  if (!pkArray || !xArray || !yArray || !Array.isArray(pkArray) || !Array.isArray(xArray) || !Array.isArray(yArray)) {
+    console.warn('interpolateData: Invalid arrays provided, returning empty array');
+    return [];
+  }
+  
+  if (pkArray.length === 0 || xArray.length === 0 || yArray.length === 0) {
+    console.warn('interpolateData: Empty arrays provided, returning empty array');
+    return [];
+  }
+  
   const minPk = Math.min(...pkArray);
   const maxPk = Math.max(...pkArray);
 

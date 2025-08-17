@@ -173,23 +173,45 @@ app.post('/api/add-type-point', authenticateToken, async (req, res) => {
   const {
     type, name, line, track, pk,
     xSif, ySif, xReal, yReal, infos,
-    x, y
+    x, y, info
   } = req.body;
+
+  console.log('📥 SERVEUR - Données reçues pour add-type-point');
 
   if (!name || x === undefined || y === undefined) {
     return res.status(400).json({ error: 'Champs obligatoires manquants (nom, x, y).' });
   }
 
   try {
-    
     await client.connect();
     const db = client.db('SIF');
-    const result = await db.collection('TypePoints').insertOne({
-      type, name, line, track, pk,
-      xSif, ySif, xReal, yReal, infos,
-      x, y,
+    const toInsert = {
+      type,
+      name,
+      line,
+      track,
+      pk,
+      xSif,
+      ySif,
+      xReal,
+      yReal,
+      // support both info/infos variants
+      info: info ?? infos ?? null,
+      infos: infos ?? info ?? null,
+      x,
+      y,
       createdAt: new Date(),
-    });
+    };
+
+    const result = await db.collection('TypePoints').insertOne(toInsert);
+
+    // Debug: fetch et log du document inséré pour vérifier les champs sauvegardés
+    try {
+      const insertedDoc = await db.collection('TypePoints').findOne({ _id: result.insertedId });
+      console.log('✅ SERVEUR - Document stocké dans TypePoints (sans Etats):', insertedDoc);
+    } catch (fetchErr) {
+      console.error('Erreur lors de la vérification du document inséré:', fetchErr);
+    }
 
     res.status(201).json({ message: 'TypePoint ajouté avec succès.', id: result.insertedId });
   } catch (err) {

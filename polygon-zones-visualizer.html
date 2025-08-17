@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualiseur Polygones de Zones - SIF-HPMV</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family="Inter":wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        .zone-grid {
+            background-image: 
+                linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+                linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        .zone-polygon {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .zone-polygon:hover {
+            stroke-width: 3;
+            opacity: 0.9;
+        }
+        
+        .railway-line {
+            stroke-dasharray: 10,5;
+            animation: train-move 3s linear infinite;
+        }
+        
+        @keyframes train-move {
+            to {
+                stroke-dashoffset: -15;
+            }
+        }
+        
+        .highlight-zone {
+            animation: zone-highlight 2s ease-in-out infinite;
+        }
+        
+        @keyframes zone-highlight {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-8">
+    <div class="max-w-7xl mx-auto px-4">
+        
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">🔷 Visualiseur Calcul des Polygones de Zones</h1>
+            <p class="text-xl text-gray-600 mb-1">Projet SIF-WEB-HPMV</p>
+            <p class="text-sm text-gray-500">Génération de polygones à partir de zones ferroviaires</p>
+        </div>
+
+        <!-- Contrôles interactifs -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">🎯 Configuration des Zones</h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <!-- Zone 1 -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 class="font-bold text-blue-800 mb-3">Zone A - "Signalisation"</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>PK Début:</span>
+                            <input type="number" id="zone1Start" value="100" min="0" max="500" class="w-16 px-2 py-1 border rounded">
+                        </div>
+                        <div class="flex justify-between">
+                            <span>PK Fin:</span>
+                            <input type="number" id="zone1End" value="200" min="0" max="500" class="w-16 px-2 py-1 border rounded">
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Ligne:</span>
+                            <select id="zone1Line" class="w-16 px-2 py-1 border rounded">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Voie:</span>
+                            <select id="zone1Track" class="w-16 px-2 py-1 border rounded">
+                                <option value="V1">V1</option>
+                                <option value="V2">V2</option>
+                            </select>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Largeur:</span>
+                            <input type="number" id="zone1Width" value="20" min="5" max="50" class="w-16 px-2 py-1 border rounded">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zone 2 -->
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 class="font-bold text-green-800 mb-3">Zone B - "Signalisation"</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>PK Début:</span>
+                            <input type="number" id="zone2Start" value="180" min="0" max="500" class="w-16 px-2 py-1 border rounded">
+                        </div>
+                        <div class="flex justify-between">
+                            <span>PK Fin:</span>
+                            <input type="number" id="zone2End" value="280" min="0" max="500" class="w-16 px-2 py-1 border rounded">
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Ligne:</span>
+                            <select id="zone2Line" class="w-16 px-2 py-1 border rounded">
+                                <option value="1">1</option>
+                                <option value="2" selected>2</option>
+                            </select>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Voie:</span>
+                            <select id="zone2Track" class="w-16 px-2 py-1 border rounded">
+                                <option value="V1">V1</option>
+                                <option value="V2" selected>V2</option>
+                            </select>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Largeur:</span>
+                            <input type="number" id="zone2Width" value="25" min="5" max="50" class="w-16 px-2 py-1 border rounded">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zone 3 -->
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <h3 class="font-bold text-purple-800 mb-3">Zone C - "Caténaire"</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>PK Début:</span>
+                            <input type="number" id="zone3Start" value="250" min="0" max="500" class="w-16 px-2 py-1 border rounded">
+                        </div>
+                        <div class="flex justify-between">
+                            <span>PK Fin:</span>
+                            <input type="number" id="zone3End" value="350" min="0" max="500" class="w-16 px-2 py-1 border rounded">
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Ligne:</span>
+                            <select id="zone3Line" class="w-16 px-2 py-1 border rounded">
+                                <option value="1" selected>1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Voie:</span>
+                            <select id="zone3Track" class="w-16 px-2 py-1 border rounded">
+                                <option value="V1" selected>V1</option>
+                                <option value="V2">V2</option>
+                            </select>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Largeur:</span>
+                            <input type="number" id="zone3Width" value="30" min="5" max="50" class="w-16 px-2 py-1 border rounded">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-4 items-center">
+                <button onclick="generatePolygons()" 
+                        class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors">
+                    🔄 Regénérer Polygones
+                </button>
+                <button onclick="toggleMerging()" 
+                        id="mergeToggle"
+                        class="bg-orange-600 text-white px-6 py-2 rounded-md hover:bg-orange-700 transition-colors">
+                    🔗 Fusionner Zones Identiques
+                </button>
+                <button onclick="randomizeZones()" 
+                        class="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 transition-colors">
+                    🎲 Zones Aléatoires
+                </button>
+                <label class="flex items-center">
+                    <input type="checkbox" id="showInterpolation" checked class="mr-2">
+                    <span class="text-sm">Afficher interpolation</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Visualisation principale -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">🗺️ Vue d'Ensemble - Réseau Ferroviaire</h2>
+            
+            <div class="relative mb-4">
+                <svg id="mainVisualization" width="100%" height="500" viewBox="0 0 800 500" class="zone-grid border border-gray-300 rounded">
+                    <!-- Axes et graduation -->
+                    <line x1="50" y1="450" x2="750" y2="450" stroke="#374151" stroke-width="2"/>
+                    <line x1="50" y1="50" x2="50" y2="450" stroke="#374151" stroke-width="2"/>
+                    
+                    <!-- Labels des axes -->
+                    <text x="400" y="485" text-anchor="middle" class="fill-gray-600 text-sm font-semibold">PK (Point Kilométrique)</text>
+                    <text x="25" y="250" text-anchor="middle" transform="rotate(-90 25 250)" class="fill-gray-600 text-sm font-semibold">Voies</text>
+                    
+                    <!-- Graduation PK -->
+                    <g id="pkGraduationMain"></g>
+                    
+                    <!-- Voies ferrées -->
+                    <g id="railwayTracks">
+                        <!-- Ligne 1 -->
+                        <line x1="50" y1="200" x2="750" y2="200" stroke="#8B5CF6" stroke-width="4" class="railway-line"/>
+                        <text x="30" y="205" text-anchor="middle" class="fill-purple-800 text-sm font-bold">L1-V1</text>
+                        
+                        <line x1="50" y1="220" x2="750" y2="220" stroke="#7C3AED" stroke-width="4" class="railway-line"/>
+                        <text x="30" y="225" text-anchor="middle" class="fill-purple-800 text-sm font-bold">L1-V2</text>
+                        
+                        <!-- Ligne 2 -->
+                        <line x1="50" y1="280" x2="750" y2="280" stroke="#059669" stroke-width="4" class="railway-line"/>
+                        <text x="30" y="285" text-anchor="middle" class="fill-green-800 text-sm font-bold">L2-V1</text>
+                        
+                        <line x1="50" y1="300" x2="750" y2="300" stroke="#047857" stroke-width="4" class="railway-line"/>
+                        <text x="30" y="305" text-anchor="middle" class="fill-green-800 text-sm font-bold">L2-V2</text>
+                    </g>
+                    
+                    <!-- Polygones des zones -->
+                    <g id="zonePolygons"></g>
+                    
+                    <!-- Points d'interpolation -->
+                    <g id="interpolationPoints"></g>
+                    
+                    <!-- Labels des zones -->
+                    <g id="zoneLabels"></g>
+                </svg>
+            </div>
+
+            <!-- Légende -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                <div class="flex items-center">
+                    <div class="w-4 h-4 bg-purple-600 rounded mr-2"></div>
+                    <span>Ligne 1 (V1, V2)</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-4 h-4 bg-green-600 rounded mr-2"></div>
+                    <span>Ligne 2 (V1, V2)</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                    <span>Points interpolés</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-4 h-2 bg-blue-400 opacity-50 mr-2"></div>
+                    <span>Polygones de zones</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Algorithme étape par étape -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            
+            <!-- Processus de génération -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">🔄 Processus de Génération</h2>
+                
+                <div class="space-y-4">
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                        <h3 class="font-bold text-blue-800 mb-2">1️⃣ Définition des Zones</h3>
+                        <p class="text-sm text-gray-700">Chaque zone a un PK début, PK fin, ligne, voie et nom.</p>
+                    </div>
+                    
+                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+                        <h3 class="font-bold text-yellow-800 mb-2">2️⃣ Interpolation des Points</h3>
+                        <p class="text-sm text-gray-700">Calcul des coordonnées précises aux PK début/fin via interpolation linéaire.</p>
+                    </div>
+                    
+                    <div class="bg-purple-50 border-l-4 border-purple-500 p-4 rounded">
+                        <h3 class="font-bold text-purple-800 mb-2">3️⃣ Création du Polygone</h3>
+                        <p class="text-sm text-gray-700">Génération d'une bande parallèle à la voie, englobant la zone.</p>
+                    </div>
+                    
+                    <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+                        <h3 class="font-bold text-green-800 mb-2">4️⃣ Fusion & Couleurs</h3>
+                        <p class="text-sm text-gray-700">Fusion des zones identiques, attribution de couleurs aléatoires.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Détails des zones -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">📊 Détails des Zones Actives</h2>
+                
+                <div id="zoneDetails" class="space-y-3">
+                    <!-- Contenu généré dynamiquement -->
+                </div>
+                
+                <div class="mt-4 p-3 bg-gray-100 rounded-lg">
+                    <p class="text-sm text-gray-700">
+                        <strong>💡 Astuce :</strong> Les zones avec le même nom sur différentes voies sont fusionnées en un seul polygone englobant.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formules de calcul -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">📐 Calculs Mathématiques</h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 class="font-bold text-blue-800 mb-3">🎯 Interpolation des Points Extrêmes</h3>
+                    <div class="space-y-2 text-sm font-mono">
+                        <div>X_début = X1 + (X2 - X1) * (PK_début - PK1) / (PK2 - PK1)</div>
+                        <div>Y_début = Y1 + (Y2 - Y1) * (PK_début - PK1) / (PK2 - PK1)</div>
+                        <div class="text-gray-500">// Même calcul pour X_fin, Y_fin</div>
+                    </div>
+                </div>
+                
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 class="font-bold text-green-800 mb-3">🔷 Génération du Polygone</h3>
+                    <div class="space-y-2 text-sm font-mono">
+                        <div>// Bande parallèle à la voie</div>
+                        <div>P1 = (X_début, Y_début - largeur/2)</div>
+                        <div>P2 = (X_fin, Y_fin - largeur/2)</div>
+                        <div>P3 = (X_fin, Y_fin + largeur/2)</div>
+                        <div>P4 = (X_début, Y_début + largeur/2)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Avantages et limitations -->
+        <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg shadow-lg p-6">
+            <h2 class="text-2xl font-bold text-blue-800 mb-4">✅ Avantages & ⚠️ Limitations</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-semibold text-green-700 mb-3">✅ Avantages :</h3>
+                    <ul class="space-y-2 text-sm text-gray-700">
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">•</span>
+                            <span>Visualisation claire et continue des zones</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">•</span>
+                            <span>Fusion automatique des zones identiques</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">•</span>
+                            <span>Couleurs distinctes pour éviter la confusion</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">•</span>
+                            <span>Adaptation automatique à la géométrie de la voie</span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold text-red-700 mb-3">⚠️ Limitations :</h3>
+                    <ul class="space-y-2 text-sm text-gray-700">
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2">•</span>
+                            <span>Polygones rectangulaires uniquement</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2">•</span>
+                            <span>Pas de prise en compte des courbes complexes</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2">•</span>
+                            <span>Interpolation linéaire simple</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2">•</span>
+                            <span>Largeur constante par zone</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-gray-500 text-sm">
+            <p>🔷 Visualiseur Polygones de Zones - SIF-WEB-HPMV</p>
+            <p>🗓️ Créé le : 17 Août 2025</p>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        let config = {
+            svgWidth: 800,
+            svgHeight: 500,
+            marginLeft: 50,
+            marginRight: 50,
+            marginTop: 50,
+            marginBottom: 50,
+            pkMin: 0,
+            pkMax: 500
+        };
+
+        // Points de référence pour l'interpolation (simulés)
+        let referencePoints = [
+            { pk: 0, x: 50, y: 250 },
+            { pk: 100, x: 150, y: 240 },
+            { pk: 200, x: 300, y: 230 },
+            { pk: 300, x: 500, y: 220 },
+            { pk: 400, x: 650, y: 210 },
+            { pk: 500, x: 750, y: 200 }
+        ];
+
+        // État global
+        let zones = [];
+        let mergeSameZones = true;
+        let zoneColors = [];
+
+        // Conversion PK vers position SVG X
+        function pkToSvgX(pk) {
+            const graphWidth = config.svgWidth - config.marginLeft - config.marginRight;
+            return config.marginLeft + (pk / config.pkMax) * graphWidth;
+        }
+
+        // Interpolation linéaire pour obtenir les coordonnées
+        function interpolateCoordinates(pk) {
+            // Trouver les deux points encadrants
+            let p1 = referencePoints[0];
+            let p2 = referencePoints[referencePoints.length - 1];
+            
+            for (let i = 0; i < referencePoints.length - 1; i++) {
+                if (pk >= referencePoints[i].pk && pk <= referencePoints[i + 1].pk) {
+                    p1 = referencePoints[i];
+                    p2 = referencePoints[i + 1];
+                    break;
+                }
+            }
+            
+            if (p2.pk === p1.pk) return { x: p1.x, y: p1.y };
+            
+            const ratio = (pk - p1.pk) / (p2.pk - p1.pk);
+            return {
+                x: p1.x + (p2.x - p1.x) * ratio,
+                y: p1.y + (p2.y - p1.y) * ratio
+            };
+        }
+
+        // Obtenir la position Y de la voie
+        function getTrackY(line, track) {
+            const baseY = line === "1" ? 200 : 280;
+            return track === "V1" ? baseY : baseY + 20;
+        }
+
+        // Générer une couleur aléatoire
+        function generateRandomColor() {
+            const colors = [
+                '#3B82F6', '#EF4444', '#10B981', '#F59E0B', 
+                '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16',
+                '#F97316', '#6366F1', '#14B8A6', '#F59E0B'
+            ];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Récupérer les données des zones depuis les inputs
+        function getZonesFromInputs() {
+            const zones = [];
+            
+            for (let i = 1; i <= 3; i++) {
+                const start = parseFloat(document.getElementById(`zone${i}Start`).value);
+                const end = parseFloat(document.getElementById(`zone${i}End`).value);
+                const line = document.getElementById(`zone${i}Line`).value;
+                const track = document.getElementById(`zone${i}Track`).value;
+                const width = parseFloat(document.getElementById(`zone${i}Width`).value);
+                
+                let name;
+                if (i === 1 || i === 2) name = "Signalisation";
+                else name = "Caténaire";
+                
+                zones.push({
+                    id: i,
+                    name: name,
+                    pkStart: start,
+                    pkEnd: end,
+                    line: line,
+                    track: track,
+                    width: width,
+                    color: generateRandomColor()
+                });
+            }
+            
+            return zones;
+        }
+
+        // Fusionner les zones avec le même nom
+        function mergeZonesByName(zones) {
+            if (!mergeSameZones) return zones;
+            
+            const grouped = {};
+            
+            zones.forEach(zone => {
+                if (!grouped[zone.name]) {
+                    grouped[zone.name] = {
+                        name: zone.name,
+                        zones: [],
+                        pkStart: zone.pkStart,
+                        pkEnd: zone.pkEnd,
+                        width: zone.width,
+                        color: zone.color
+                    };
+                }
+                
+                grouped[zone.name].zones.push(zone);
+                grouped[zone.name].pkStart = Math.min(grouped[zone.name].pkStart, zone.pkStart);
+                grouped[zone.name].pkEnd = Math.max(grouped[zone.name].pkEnd, zone.pkEnd);
+                grouped[zone.name].width = Math.max(grouped[zone.name].width, zone.width);
+            });
+            
+            return Object.values(grouped);
+        }
+
+        // Générer les polygones
+        function generatePolygons() {
+            zones = getZonesFromInputs();
+            const mergedZones = mergeZonesByName(zones);
+            
+            updateVisualization(mergedZones);
+            updateZoneDetails(mergedZones);
+        }
+
+        // Mise à jour de la visualisation
+        function updateVisualization(mergedZones) {
+            const svg = document.getElementById('mainVisualization');
+            
+            // Nettoyer les polygones existants
+            const polygonsGroup = document.getElementById('zonePolygons');
+            const interpolationGroup = document.getElementById('interpolationPoints');
+            const labelsGroup = document.getElementById('zoneLabels');
+            
+            polygonsGroup.innerHTML = '';
+            interpolationGroup.innerHTML = '';
+            labelsGroup.innerHTML = '';
+            
+            const showInterpolation = document.getElementById('showInterpolation').checked;
+            
+            mergedZones.forEach((mergedZone, index) => {
+                // Calculer les coordonnées des points extrêmes
+                const startCoord = interpolateCoordinates(mergedZone.pkStart);
+                const endCoord = interpolateCoordinates(mergedZone.pkEnd);
+                
+                // Créer le polygone pour chaque zone individuelle ou pour la zone fusionnée
+                if (mergedZone.zones) {
+                    // Zone fusionnée - créer un grand polygone englobant
+                    const allTracks = mergedZone.zones.map(z => ({ line: z.line, track: z.track }));
+                    const minY = Math.min(...allTracks.map(t => getTrackY(t.line, t.track)));
+                    const maxY = Math.max(...allTracks.map(t => getTrackY(t.line, t.track)));
+                    
+                    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    const points = [
+                        `${startCoord.x},${minY - mergedZone.width/2}`,
+                        `${endCoord.x},${minY - mergedZone.width/2}`,
+                        `${endCoord.x},${maxY + mergedZone.width/2}`,
+                        `${startCoord.x},${maxY + mergedZone.width/2}`
+                    ].join(' ');
+                    
+                    polygon.setAttribute('points', points);
+                    polygon.setAttribute('fill', mergedZone.color);
+                    polygon.setAttribute('opacity', '0.6');
+                    polygon.setAttribute('stroke', mergedZone.color);
+                    polygon.setAttribute('stroke-width', '2');
+                    polygon.setAttribute('class', 'zone-polygon');
+                    polygonsGroup.appendChild(polygon);
+                    
+                    // Label de la zone fusionnée
+                    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    label.setAttribute('x', (startCoord.x + endCoord.x) / 2);
+                    label.setAttribute('y', (minY + maxY) / 2);
+                    label.setAttribute('text-anchor', 'middle');
+                    label.setAttribute('class', 'fill-white text-sm font-bold');
+                    label.textContent = `${mergedZone.name} (Fusionné)`;
+                    labelsGroup.appendChild(label);
+                } else {
+                    // Zone individuelle
+                    const trackY = getTrackY(mergedZone.line, mergedZone.track);
+                    
+                    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    const points = [
+                        `${startCoord.x},${trackY - mergedZone.width/2}`,
+                        `${endCoord.x},${trackY - mergedZone.width/2}`,
+                        `${endCoord.x},${trackY + mergedZone.width/2}`,
+                        `${startCoord.x},${trackY + mergedZone.width/2}`
+                    ].join(' ');
+                    
+                    polygon.setAttribute('points', points);
+                    polygon.setAttribute('fill', mergedZone.color);
+                    polygon.setAttribute('opacity', '0.6');
+                    polygon.setAttribute('stroke', mergedZone.color);
+                    polygon.setAttribute('stroke-width', '2');
+                    polygon.setAttribute('class', 'zone-polygon');
+                    polygonsGroup.appendChild(polygon);
+                    
+                    // Label de la zone
+                    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    label.setAttribute('x', (startCoord.x + endCoord.x) / 2);
+                    label.setAttribute('y', trackY);
+                    label.setAttribute('text-anchor', 'middle');
+                    label.setAttribute('class', 'fill-white text-sm font-bold');
+                    label.textContent = mergedZone.name;
+                    labelsGroup.appendChild(label);
+                }
+                
+                // Points d'interpolation
+                if (showInterpolation) {
+                    [mergedZone.pkStart, mergedZone.pkEnd].forEach(pk => {
+                        const coord = interpolateCoordinates(pk);
+                        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        circle.setAttribute('cx', coord.x);
+                        circle.setAttribute('cy', coord.y);
+                        circle.setAttribute('r', '4');
+                        circle.setAttribute('fill', '#EF4444');
+                        circle.setAttribute('stroke', 'white');
+                        circle.setAttribute('stroke-width', '2');
+                        interpolationGroup.appendChild(circle);
+                        
+                        const pkLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        pkLabel.setAttribute('x', coord.x);
+                        pkLabel.setAttribute('y', coord.y - 10);
+                        pkLabel.setAttribute('text-anchor', 'middle');
+                        pkLabel.setAttribute('class', 'fill-red-800 text-xs font-semibold');
+                        pkLabel.textContent = `PK${pk}`;
+                        interpolationGroup.appendChild(pkLabel);
+                    });
+                }
+            });
+            
+            // Mise à jour de la graduation
+            updatePkGraduation();
+        }
+
+        // Mise à jour de la graduation PK
+        function updatePkGraduation() {
+            const graduation = document.getElementById('pkGraduationMain');
+            graduation.innerHTML = '';
+            
+            for (let pk = 0; pk <= 500; pk += 50) {
+                const x = pkToSvgX(pk);
+                
+                // Trait de graduation
+                const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                tick.setAttribute('x1', x);
+                tick.setAttribute('y1', 445);
+                tick.setAttribute('x2', x);
+                tick.setAttribute('y2', 455);
+                tick.setAttribute('stroke', '#6B7280');
+                tick.setAttribute('stroke-width', '1');
+                graduation.appendChild(tick);
+                
+                // Label
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', x);
+                label.setAttribute('y', 470);
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('class', 'fill-gray-600 text-xs');
+                label.textContent = pk;
+                graduation.appendChild(label);
+            }
+        }
+
+        // Mise à jour des détails des zones
+        function updateZoneDetails(mergedZones) {
+            const container = document.getElementById('zoneDetails');
+            container.innerHTML = '';
+            
+            mergedZones.forEach((zone, index) => {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-50 border border-gray-200 rounded-lg p-3';
+                
+                if (zone.zones) {
+                    // Zone fusionnée
+                    div.innerHTML = `
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-bold text-gray-800">${zone.name} (Fusionné)</h3>
+                            <div class="w-4 h-4 rounded" style="background-color: ${zone.color}"></div>
+                        </div>
+                        <div class="text-sm text-gray-600 space-y-1">
+                            <div>PK: ${zone.pkStart} → ${zone.pkEnd} (${zone.pkEnd - zone.pkStart}m)</div>
+                            <div>Zones: ${zone.zones.map(z => `L${z.line}-${z.track}`).join(', ')}</div>
+                            <div>Largeur max: ${zone.width}m</div>
+                        </div>
+                    `;
+                } else {
+                    // Zone individuelle
+                    div.innerHTML = `
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-bold text-gray-800">${zone.name}</h3>
+                            <div class="w-4 h-4 rounded" style="background-color: ${zone.color}"></div>
+                        </div>
+                        <div class="text-sm text-gray-600 space-y-1">
+                            <div>PK: ${zone.pkStart} → ${zone.pkEnd} (${zone.pkEnd - zone.pkStart}m)</div>
+                            <div>Voie: L${zone.line}-${zone.track}</div>
+                            <div>Largeur: ${zone.width}m</div>
+                        </div>
+                    `;
+                }
+                
+                container.appendChild(div);
+            });
+        }
+
+        // Toggle fusion des zones
+        function toggleMerging() {
+            mergeSameZones = !mergeSameZones;
+            const button = document.getElementById('mergeToggle');
+            if (mergeSameZones) {
+                button.textContent = '🔗 Fusionner Zones Identiques';
+                button.className = 'bg-orange-600 text-white px-6 py-2 rounded-md hover:bg-orange-700 transition-colors';
+            } else {
+                button.textContent = '🔓 Zones Séparées';
+                button.className = 'bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition-colors';
+            }
+            generatePolygons();
+        }
+
+        // Générer des zones aléatoires
+        function randomizeZones() {
+            for (let i = 1; i <= 3; i++) {
+                const start = Math.floor(Math.random() * 200) + 50;
+                const end = start + Math.floor(Math.random() * 150) + 50;
+                const line = Math.random() > 0.5 ? "1" : "2";
+                const track = Math.random() > 0.5 ? "V1" : "V2";
+                const width = Math.floor(Math.random() * 30) + 15;
+                
+                document.getElementById(`zone${i}Start`).value = start;
+                document.getElementById(`zone${i}End`).value = end;
+                document.getElementById(`zone${i}Line`).value = line;
+                document.getElementById(`zone${i}Track`).value = track;
+                document.getElementById(`zone${i}Width`).value = width;
+            }
+            generatePolygons();
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Event listeners pour tous les inputs
+            for (let i = 1; i <= 3; i++) {
+                ['Start', 'End', 'Line', 'Track', 'Width'].forEach(field => {
+                    document.getElementById(`zone${i}${field}`).addEventListener('change', generatePolygons);
+                });
+            }
+            
+            document.getElementById('showInterpolation').addEventListener('change', generatePolygons);
+            
+            // Génération initiale
+            generatePolygons();
+        });
+    </script>
+</body>
+</html>

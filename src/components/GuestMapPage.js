@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import './Navbar.css';
 import Navbar from './Navbar';
-import { FaUserCircle, FaSearch, FaTrain, FaBroadcastTower, FaLayerGroup, FaPlus, FaMinus, FaExpand, FaBuilding, FaCog } from 'react-icons/fa';
+import { FaSearch, FaTrain, FaBroadcastTower, FaBuilding, FaCog, FaPlus, FaMinus, FaExpand } from 'react-icons/fa';
 import { useTypePoints } from '../hooks/useTypePoints';
 
 const layerImageMap = {
@@ -43,6 +44,30 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
   // Hook pour récupérer les points BTS/GSMR
   const { typePoints } = useTypePoints();
 
+  // Fonction robuste pour normaliser les états et gérer les fautes de frappe
+  const normalizeEtat = (etat) => {
+    if (!etat || etat === 'undefined' || etat === 'null') return 'Mis en service';
+    const cleaned = etat.toString().toLowerCase()
+      .trim()
+      .replace(/[àáâãäå]/g, 'a')
+      .replace(/[èéêë]/g, 'e')
+      .replace(/[ìíîï]/g, 'i')
+      .replace(/[òóôõö]/g, 'o')
+      .replace(/[ùúûü]/g, 'u')
+      .replace(/[ç]/g, 'c')
+      .replace(/[ñ]/g, 'n')
+      .replace(/[\s\-_]/g, '');
+    if (cleaned.includes('etud')) return 'Etude';
+    if (cleaned.includes('realis') || cleaned.includes('realiz')) return 'Réalisation';
+    if (cleaned.includes('service') || cleaned.includes('exploit')) return 'Mis en service';
+    return 'Mis en service';
+  };
+  const etatColorMap = {
+    'Etude': '#FF9800',
+    'Réalisation': '#FF5722',
+    'Mis en service': '#2196F3',
+  };
+
   // Icon component et couleurs
   const getTypeIcon = (type, size = 24) => {
     const iconProps = { size: size, style: { filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' } };
@@ -59,14 +84,6 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
       default:
         return <FaBroadcastTower {...iconProps} color="#1976D2" />; // Bleu par défaut
     }
-  };
-
-  // Color mapping par états (border colors)
-  const etatColorMap = {
-    'Etude': '#FF9800', // Orange
-    'Réalisation': '#4CAF50', // Vert
-    'Mis en service': '#2196F3', // Bleu
-    'Exploitation': '#2196F3', // Bleu
   };
 
   // Dummy search logic (replace with real API)
@@ -119,6 +136,30 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
     const height = imgRef.current.naturalHeight;
     setNaturalSize({ width, height });
   };
+
+  // Effet pour gérer le style en mode plein écran
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .map-fullscreen-container:fullscreen {
+        background-color: white !important;
+        padding: 20px !important;
+      }
+      .map-fullscreen-container:-webkit-full-screen {
+        background-color: white !important;
+        padding: 20px !important;
+      }
+      .map-fullscreen-container:-moz-full-screen {
+        background-color: white !important;
+        padding: 20px !important;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] font-sans flex flex-col">
@@ -218,7 +259,7 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                   <span>Étude</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded-full border-2" style={{borderColor: '#4CAF50'}}></div>
+                  <div className="w-3 h-3 rounded-full border-2" style={{borderColor: '#FF5722'}}></div>
                   <span>Réalisation</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -286,7 +327,13 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
             <div
               ref={containerRef}
               className="w-full h-full overflow-auto map-fullscreen-container"
-              style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+              style={{ 
+                cursor: isDragging ? 'grabbing' : 'grab',
+                backgroundColor: 'white', // Background blanc pour le plein écran
+                // CSS pour le mode plein écran avec Tailwind style
+                '--fullscreen-bg': 'white',
+                '--fullscreen-padding': '20px'
+              }}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -335,13 +382,11 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                 
                 {/* Points BTS/GSMR pour les invités */}
                 {activeLayers['BTS GSM-R'] && typePoints && typePoints.filter(pt => {
-                  // Filtrer seulement les points BTS GSM-R (existante, HPMV, et nouveau type unifié)
                   const isBTSPoint = pt.type === 'BTS GSM-R existante' || pt.type === 'BTS GSM-R HPMV' || pt.type === 'BTS GSM-R';
                   return isBTSPoint && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
                 }).map((point, idx) => {
-                  // Normalisation de l'état pour correspondre aux clés de etatColorMap
-                  const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
-                  const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                  const normalizedEtat = normalizeEtat(point.Etats);
+                  const etatColor = etatColorMap[normalizedEtat] || '#2196F3';
                   
                   // Offset vertical selon la voie
                   let yOffset = 0;
@@ -369,15 +414,18 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                       title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
                     >
                       <div
+                        className="bts-icon-container"
                         style={{
                           backgroundColor: 'white',
-                          border: `3px solid ${etatColor}`,
+                          border: `4px solid ${etatColor}`, // Bordure plus épaisse
                           borderRadius: '50%',
-                          padding: '4px',
+                          padding: '6px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          boxShadow: '0 3px 6px rgba(0,0,0,0.3)',
+                          minWidth: '32px',
+                          minHeight: '32px'
                         }}
                       >
                         {getTypeIcon(point.type, 20)}
@@ -390,8 +438,8 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                 {activeLayers['Postes existants'] && typePoints && typePoints.filter(pt => {
                   return pt.type === 'Postes existants' && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
                 }).map((point, idx) => {
-                  const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
-                  const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                  const normalizedEtat = normalizeEtat(point.Etats);
+                  const etatColor = etatColorMap[normalizedEtat] || '#2196F3';
                   
                   let yOffset = 0;
                   if (point.track) {
@@ -438,8 +486,8 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                 {activeLayers['Centre N2 HPMV'] && typePoints && typePoints.filter(pt => {
                   return pt.type === 'Centre N2 HPMV' && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
                 }).map((point, idx) => {
-                  const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
-                  const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                  const normalizedEtat = normalizeEtat(point.Etats);
+                  const etatColor = etatColorMap[normalizedEtat] || '#2196F3';
                   
                   let yOffset = 0;
                   if (point.track) {

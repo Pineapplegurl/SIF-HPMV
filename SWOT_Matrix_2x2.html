@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrice SWOT 2x2 - SIF-WEB-HPMV</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .swot-cell {
+            min-height: 400px;
+        }
+        @media print {
+            @page {
+                margin: 1cm;
+                size: A3 landscape;
+            }
+            body {
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+            .container {
+                max-width: none;
+            }
+            .swot-cell {
+                min-height: 350px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">📊 MATRICE SWOT 2x2</h1>
+            <p class="text-xl text-gray-600 mb-1">Projet SIF-WEB-HPMV</p>
+            <p class="text-sm text-gray-500">Analyse Stratégique - Août 2025</p>
+        </div>
+
+        <!-- SWOT Matrix Table 2x2 -->
+        <div class="max-w-7xl mx-auto">
+            <div class="bg-white rounded-xl shadow-2xl overflow-hidden">
+                
+                <!-- Header Row -->
+                <div class="grid grid-cols-3 bg-gray-800 text-white">
+                    <div class="p-4"></div>
+                    <div class="p-4 text-center border-l border-gray-600">
+                        <h2 class="text-xl font-bold">🎯 FACTEURS POSITIFS</h2>
+                        <p class="text-sm text-gray-300">Éléments favorables</p>
+                    </div>
+                    <div class="p-4 text-center border-l border-gray-600">
+                        <h2 class="text-xl font-bold">⚠️ FACTEURS NÉGATIFS</h2>
+                        <p class="text-sm text-gray-300">Éléments défavorables</p>
+                    </div>
+                </div>
+
+                <!-- Internal Factors Row -->
+                <div class="grid grid-cols-3">
+                    <!-- Internal Label -->
+                    <div class="bg-blue-600 text-white p-4 flex items-center justify-center swot-cell">
+                        <div class="text-center transform -rotate-90">
+                            <h2 class="text-xl font-bold whitespace-nowrap">🏠 FACTEURS INTERNES</h2>
+                            <p class="text-sm text-blue-200 whitespace-nowrap">Contrôlables par l'organisation</p>
+                        </div>
+                    </div>
+                    
+                    <!-- FORCES (Strengths) -->
+                    <div class="bg-green-50 border border-green-200 p-6 swot-cell">
+                        <div class="flex items-center mb-4">
+                            <div class="bg-green-500 text-white rounded-full p-2 mr-3">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold text-green-800">FORCES</h3>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div class="bg-white rounded-md p-3 border-l-4 border-green-500">
+                                <h4 class="font-semibold text-green-800 text-sm mb-1">🚀 Excellence Technique</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Technologies modernes (React + Tailwind)</li>
+                                    <li>• Sécurité JWT</li>
+                                    <li>• Architecture évolutive (API REST + MongoDB)</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="bg-white rounded-md p-3 border-l-4 border-green-500">
+                                <h4 class="font-semibold text-green-800 text-sm mb-1">👥 Adoption Utilisateur</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Interface intuitive confirmée</li>
+                                    <li>• Retours positifs des tests</li>
+                                    <li>• Adéquation besoins métiers</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="bg-white rounded-md p-3 border-l-4 border-green-500">
+                                <h4 class="font-semibold text-green-800 text-sm mb-1">🏗️ Gestion de Projet</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Pilotage structuré (GitHub + JIRA)</li>
+                                    <li>• Développement autonome</li>
+                                    <li>• Vision transversale maîtrisée</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FAIBLESSES (Weaknesses) -->
+                    <div class="bg-red-50 border border-red-200 p-6 swot-cell">
+                        <div class="flex items-center mb-4">
+                            <div class="bg-red-500 text-white rounded-full p-2 mr-3">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold text-red-800">FAIBLESSES</h3>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div class="bg-white rounded-md p-3 border-l-4 border-red-500">
+                                <h4 class="font-semibold text-red-800 text-sm mb-1">🧪 Qualité & Tests</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Tests automatisés tardifs</li>
+                                    <li>• Modules critiques peu testés</li>
+                                    <li>• Sécurisation initiale insuffisante</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="bg-white rounded-md p-3 border-l-4 border-red-500">
+                                <h4 class="font-semibold text-red-800 text-sm mb-1">🔄 Processus DevOps</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• CI/CD différée</li>
+                                    <li>• Déploiements manuels</li>
+                                    <li>• Cycle développement moins fluide</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="bg-white rounded-md p-3 border-l-4 border-red-500">
+                                <h4 class="font-semibold text-red-800 text-sm mb-1">📈 Performance & Scalabilité</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Limitations gros volumes</li>
+                                    <li>• Architecture monolithique</li>
+                                    <li>• Pas d'anticipation microservices</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- External Factors Row -->
+                <div class="grid grid-cols-3">
+                    <!-- External Label -->
+                    <div class="bg-purple-600 text-white p-4 flex items-center justify-center swot-cell">
+                        <div class="text-center transform -rotate-90">
+                            <h2 class="text-xl font-bold whitespace-nowrap">🌍 FACTEURS EXTERNES</h2>
+                            <p class="text-sm text-purple-200 whitespace-nowrap">Environnement externe</p>
+                        </div>
+                    </div>
+                    
+                    <!-- OPPORTUNITÉS (Opportunities) -->
+                    <div class="bg-blue-50 border border-blue-200 p-6 swot-cell">
+                        <div class="flex items-center mb-4">
+                            <div class="bg-blue-500 text-white rounded-full p-2 mr-3">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold text-blue-800">OPPORTUNITÉS</h3>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div class="bg-white rounded-md p-3 border-l-4 border-blue-500">
+                                <h4 class="font-semibold text-blue-800 text-sm mb-1">📱 Extensions Technologiques</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Mode offline (PWA + IndexedDB)</li>
+                                    <li>• Application mobile</li>
+                                    <li>• Intégration SIG (ArcGIS/QGIS)</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="bg-white rounded-md p-3 border-l-4 border-blue-500">
+                                <h4 class="font-semibold text-blue-800 text-sm mb-1">🔧 Fonctionnalités Avancées</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Rapports automatisés (PDF)</li>
+                                    <li>• Synchronisation différée</li>
+                                    <li>• Architecture microservices</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="bg-white rounded-md p-3 border-l-4 border-blue-500">
+                                <h4 class="font-semibold text-blue-800 text-sm mb-1">🎯 Positionnement Métier</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Référence interne SNCF</li>
+                                    <li>• Expertise technique stack moderne</li>
+                                    <li>• Innovation digitale</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MENACES (Threats) -->
+                    <div class="bg-yellow-50 border border-yellow-200 p-6 swot-cell">
+                        <div class="flex items-center mb-4">
+                            <div class="bg-yellow-500 text-white rounded-full p-2 mr-3">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold text-yellow-800">MENACES</h3>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div class="bg-white rounded-md p-3 border-l-4 border-yellow-500">
+                                <h4 class="font-semibold text-yellow-800 text-sm mb-1">🏢 Contraintes Organisationnelles</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Budget limité pour évolutions</li>
+                                    <li>• Résistance au changement</li>
+                                    <li>• Maintenance long terme</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="bg-white rounded-md p-3 border-l-4 border-yellow-500">
+                                <h4 class="font-semibold text-yellow-800 text-sm mb-1">🔐 Risques Techniques</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Sécurité cyber (exposition web)</li>
+                                    <li>• Obsolescence technologique</li>
+                                    <li>• Dépendances externes vulnérables</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="bg-white rounded-md p-3 border-l-4 border-yellow-500">
+                                <h4 class="font-semibold text-yellow-800 text-sm mb-1">📊 Défis de Scalabilité</h4>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    <li>• Volume de données croissant</li>
+                                    <li>• Solutions concurrentes SIG</li>
+                                    <li>• Intégration SI complexe legacy</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Strategic Axes -->
+        <div class="max-w-6xl mx-auto mt-8">
+            <div class="bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-lg p-6 shadow-lg">
+                <h2 class="text-2xl font-bold text-indigo-800 mb-4 text-center">🎯 AXES STRATÉGIQUES</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- SO Strategy -->
+                    <div class="bg-white rounded-md p-4 border-l-4 border-green-500 shadow">
+                        <h3 class="font-semibold text-green-800 mb-2 flex items-center">
+                            <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs mr-2">FORCES-OPPORTUNITÉS</span>
+                        </h3>
+                        <h4 class="font-bold text-green-700 mb-2">🚀 Stratégie de Croissance</h4>
+                        <ul class="text-sm text-gray-700 space-y-1">
+                            <li>• Capitaliser sur l'expertise React pour développer une app mobile</li>
+                            <li>• Utiliser les retours positifs pour justifier les évolutions PWA</li>
+                            <li>• Positionner la solution comme référence technique SNCF</li>
+                        </ul>
+                    </div>
+
+                    <!-- WO Strategy -->
+                    <div class="bg-white rounded-md p-4 border-l-4 border-blue-500 shadow">
+                        <h3 class="font-semibold text-blue-800 mb-2 flex items-center">
+                            <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs mr-2">FAIBLESSES-OPPORTUNITÉS</span>
+                        </h3>
+                        <h4 class="font-bold text-blue-700 mb-2">🔧 Stratégie d'Amélioration</h4>
+                        <ul class="text-sm text-gray-700 space-y-1">
+                            <li>• Implémenter CI/CD avant les évolutions microservices</li>
+                            <li>• Développer une suite de tests pour sécuriser la montée en charge</li>
+                            <li>• Anticiper l'architecture modulaire pour les extensions futures</li>
+                        </ul>
+                    </div>
+
+                    <!-- ST Strategy -->
+                    <div class="bg-white rounded-md p-4 border-l-4 border-yellow-500 shadow">
+                        <h3 class="font-semibold text-yellow-800 mb-2 flex items-center">
+                            <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs mr-2">FORCES-MENACES</span>
+                        </h3>
+                        <h4 class="font-bold text-yellow-700 mb-2">🛡️ Stratégie Défensive</h4>
+                        <ul class="text-sm text-gray-700 space-y-1">
+                            <li>• Utiliser la base technique solide pour minimiser les risques sécurité</li>
+                            <li>• Exploiter l'adoption utilisateur pour contrer la résistance au changement</li>
+                            <li>• Documenter l'expertise pour assurer la maintenabilité</li>
+                        </ul>
+                    </div>
+
+                    <!-- WT Strategy -->
+                    <div class="bg-white rounded-md p-4 border-l-4 border-red-500 shadow">
+                        <h3 class="font-semibold text-red-800 mb-2 flex items-center">
+                            <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs mr-2">FAIBLESSES-MENACES</span>
+                        </h3>
+                        <h4 class="font-bold text-red-700 mb-2">⚠️ Stratégie de Survie</h4>
+                        <ul class="text-sm text-gray-700 space-y-1">
+                            <li>• Prioriser la sécurisation des modules critiques</li>
+                            <li>• Établir un plan de migration technologique progressif</li>
+                            <li>• Budgéter la maintenance préventive vs évolutions</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Performance Indicators -->
+        <div class="max-w-4xl mx-auto mt-8">
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 text-center">📊 INDICATEURS CLÉS DE PERFORMANCE</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="text-center">
+                        <div class="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-2">
+                            <span class="text-2xl font-bold text-green-800">85%</span>
+                        </div>
+                        <h4 class="font-semibold text-gray-800">Satisfaction Utilisateur</h4>
+                        <p class="text-sm text-gray-600">Retours positifs tests</p>
+                    </div>
+                    
+                    <div class="text-center">
+                        <div class="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-2">
+                            <span class="text-2xl font-bold text-blue-800">95%</span>
+                        </div>
+                        <h4 class="font-semibold text-gray-800">Couverture Fonctionnelle</h4>
+                        <p class="text-sm text-gray-600">Besoins métiers couverts</p>
+                    </div>
+                    
+                    <div class="text-center">
+                        <div class="bg-yellow-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-2">
+                            <span class="text-2xl font-bold text-yellow-800">65%</span>
+                        </div>
+                        <h4 class="font-semibold text-gray-800">Maturité Technique</h4>
+                        <p class="text-sm text-gray-600">Tests + DevOps à améliorer</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-gray-500 text-sm">
+            <p>📋 Matrice SWOT 2x2 - Document d'analyse stratégique SIF-WEB-HPMV</p>
+            <p>🗓️ Date : 16 Août 2025 | 👤 Équipe Projet SIF</p>
+        </div>
+    </div>
+</body>
+</html>

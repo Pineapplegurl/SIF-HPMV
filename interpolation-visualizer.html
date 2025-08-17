@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualiseur Interpolation Linéaire - SIF-HPMV</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family="Inter":wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        .coordinate-grid {
+            background-image: 
+                linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+                linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        .point {
+            transition: all 0.3s ease;
+        }
+        
+        .point:hover {
+            transform: scale(1.2);
+        }
+        
+        .interpolation-line {
+            stroke-dasharray: 5,5;
+            animation: dash 2s linear infinite;
+        }
+        
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -10;
+            }
+        }
+        
+        .formula-highlight {
+            background: linear-gradient(120deg, #fef3c7 0%, #fef3c7 100%);
+            background-repeat: no-repeat;
+            background-size: 100% 0.2em;
+            background-position: 0 88%;
+            animation: highlight 2s ease-in-out;
+        }
+        
+        @keyframes highlight {
+            0%, 50% { background-size: 0% 0.2em; }
+            100% { background-size: 100% 0.2em; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-8">
+    <div class="max-w-6xl mx-auto px-4">
+        
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">🧮 Algorithme d'Interpolation Linéaire</h1>
+            <p class="text-xl text-gray-600 mb-1">Projet SIF-WEB-HPMV</p>
+            <p class="text-sm text-gray-500">Visualisation interactive du calcul de coordonnées</p>
+        </div>
+
+        <!-- Contrôles interactifs -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">🎯 Contrôles Interactifs</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Point A - PK</label>
+                    <input type="number" id="pkA" value="100" step="10" min="0" max="500" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Point B - PK</label>
+                    <input type="number" id="pkB" value="300" step="10" min="0" max="500" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">PK Cible</label>
+                    <input type="number" id="pkTarget" value="200" step="5" min="0" max="500" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Intervalle (m)</label>
+                    <select id="intervalSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <option value="100">100m</option>
+                        <option value="50">50m</option>
+                        <option value="25">25m</option>
+                        <option value="10">10m</option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button onclick="randomizePoints()" 
+                            class="w-full bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors">
+                        🎲 Aléatoire
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mode d'interpolation -->
+            <div class="border-t pt-4">
+                <h3 class="text-lg font-semibold text-gray-700 mb-3">Mode d'interpolation :</h3>
+                <div class="flex flex-wrap gap-4">
+                    <label class="flex items-center">
+                        <input type="radio" name="interpolationMode" value="single" checked 
+                               class="mr-2 text-blue-600">
+                        <span class="text-sm">🎯 Point unique</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" name="interpolationMode" value="multiple" 
+                               class="mr-2 text-purple-600">
+                        <span class="text-sm">📏 Tous les points (intervalles réguliers)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visualisation graphique -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">📊 Visualisation Graphique</h2>
+            
+            <div class="relative">
+                <svg id="interpolationSvg" width="100%" height="400" viewBox="0 0 600 400" class="coordinate-grid border border-gray-300 rounded">
+                    <!-- Axes -->
+                    <line x1="50" y1="350" x2="550" y2="350" stroke="#374151" stroke-width="2"/>
+                    <line x1="50" y1="50" x2="50" y2="350" stroke="#374151" stroke-width="2"/>
+                    
+                    <!-- Labels des axes -->
+                    <text x="300" y="380" text-anchor="middle" class="fill-gray-600 text-sm">PK (Point Kilométrique)</text>
+                    <text x="20" y="200" text-anchor="middle" transform="rotate(-90 20 200)" class="fill-gray-600 text-sm">Coordonnées</text>
+                    
+                    <!-- Graduation PK -->
+                    <g id="pkGraduation"></g>
+                    
+                    <!-- Ligne d'interpolation -->
+                    <line id="interpolationLine" class="interpolation-line" stroke="#8B5CF6" stroke-width="2"/>
+                    
+                    <!-- Points de référence -->
+                    <circle id="pointA" r="8" class="point fill-blue-600 cursor-pointer" stroke="white" stroke-width="2"/>
+                    <circle id="pointB" r="8" class="point fill-red-600 cursor-pointer" stroke="white" stroke-width="2"/>
+                    
+                    <!-- Point interpolé unique -->
+                    <circle id="pointTarget" r="10" class="point fill-green-600 cursor-pointer" stroke="white" stroke-width="3"/>
+                    
+                    <!-- Points interpolés multiples -->
+                    <g id="multiplePoints"></g>
+                    
+                    <!-- Labels des points -->
+                    <text id="labelA" class="fill-blue-800 text-sm font-semibold"></text>
+                    <text id="labelB" class="fill-red-800 text-sm font-semibold"></text>
+                    <text id="labelTarget" class="fill-green-800 text-sm font-bold"></text>
+                </svg>
+            </div>
+            
+            <!-- Statistiques mode multiple -->
+            <div id="multipleStats" class="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg hidden">
+                <h3 class="font-semibold text-purple-800 mb-2">📊 Statistiques interpolation multiple :</h3>
+                <div id="statsContent" class="text-sm text-gray-700"></div>
+            </div>
+        </div>
+
+        <!-- Formules et calculs -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            
+            <!-- Formule mathématique -->
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-blue-800 mb-4">📐 Formule d'Interpolation Linéaire</h2>
+                
+                <div class="bg-white rounded-lg p-4 mb-4 border-2 border-blue-200">
+                    <h3 class="font-semibold text-blue-700 mb-2">Pour la coordonnée X :</h3>
+                    <div class="font-mono text-lg text-gray-800 formula-highlight">
+                        X = X1 + (X2 - X1) * <span class="text-green-600 font-bold">(PKcible - PK1) / (PK2 - PK1)</span>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg p-4 border-2 border-blue-200">
+                    <h3 class="font-semibold text-blue-700 mb-2">Pour la coordonnée Y :</h3>
+                    <div class="font-mono text-lg text-gray-800 formula-highlight">
+                        Y = Y1 + (Y2 - Y1) * <span class="text-green-600 font-bold">(PKcible - PK1) / (PK2 - PK1)</span>
+                    </div>
+                </div>
+                
+                <div class="mt-4 p-3 bg-blue-100 rounded-lg">
+                    <p class="text-sm text-blue-800">
+                        <strong>💡 Principe :</strong> Le rapport de distance <span class="font-mono bg-blue-200 px-1 rounded">(PKcible - PK1) / (PK2 - PK1)</span> 
+                        détermine la position proportionnelle du point interpolé entre les deux points de référence.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Calculs détaillés -->
+            <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-green-800 mb-4">🧮 Calculs en Temps Réel</h2>
+                
+                <div id="calculationDetails" class="space-y-4">
+                    <!-- Contenu généré dynamiquement par JavaScript -->
+                </div>
+                
+                <div class="mt-4 p-3 bg-green-100 rounded-lg">
+                    <p class="text-sm text-green-800">
+                        <strong>⚡ En temps réel :</strong> Modifiez les valeurs ci-dessus pour voir les calculs se mettre à jour automatiquement.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tableau des interpolations multiples -->
+        <div id="multipleInterpolationSection" class="bg-white rounded-lg shadow-lg p-6 mb-8 hidden">
+            <h2 class="text-2xl font-bold text-purple-800 mb-4">📏 Interpolations Multiples - Tous les Points</h2>
+            
+            <div class="mb-4 p-4 bg-purple-50 border-l-4 border-purple-500 rounded">
+                <h3 class="font-semibold text-purple-800 mb-2">💡 Cas d'usage réel :</h3>
+                <p class="text-sm text-gray-700">
+                    En exploitation ferroviaire, on a souvent besoin d'interpoler <strong>tous les points intermédiaires</strong> 
+                    entre deux points de référence, par exemple tous les 100m pour cartographier complètement une section de voie.
+                </p>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table id="interpolationTable" class="min-w-full bg-white border border-gray-200 rounded-lg">
+                    <thead class="bg-purple-100">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-sm font-semibold text-purple-800 border-b">PK</th>
+                            <th class="px-4 py-2 text-left text-sm font-semibold text-purple-800 border-b">Coordonnée X</th>
+                            <th class="px-4 py-2 text-left text-sm font-semibold text-purple-800 border-b">Coordonnée Y</th>
+                            <th class="px-4 py-2 text-left text-sm font-semibold text-purple-800 border-b">Ratio</th>
+                            <th class="px-4 py-2 text-left text-sm font-semibold text-purple-800 border-b">Type</th>
+                        </tr>
+                    </thead>
+                    <tbody id="interpolationTableBody">
+                        <!-- Contenu généré dynamiquement -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Algorithme étape par étape -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">🔄 Algorithme Étape par Étape</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                    <h3 class="font-bold text-blue-800 mb-2">1️⃣ Récupération</h3>
+                    <p class="text-sm text-gray-700">Récupération des points de référence pour la ligne/voie donnée</p>
+                </div>
+                
+                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+                    <h3 class="font-bold text-yellow-800 mb-2">2️⃣ Tri</h3>
+                    <p class="text-sm text-gray-700">Tri croissant des points selon leur PK (Point Kilométrique)</p>
+                </div>
+                
+                <div class="bg-purple-50 border-l-4 border-purple-500 p-4 rounded">
+                    <h3 class="font-bold text-purple-800 mb-2">3️⃣ Encadrement</h3>
+                    <p class="text-sm text-gray-700">Identification des deux points encadrants le PK cible</p>
+                </div>
+                
+                <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+                    <h3 class="font-bold text-green-800 mb-2">4️⃣ Interpolation</h3>
+                    <p class="text-sm text-gray-700">Application de la formule d'interpolation linéaire</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Limitations et améliorations -->
+        <div class="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg shadow-lg p-6">
+            <h2 class="text-2xl font-bold text-orange-800 mb-4">⚠️ Limitations et Améliorations Possibles</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-semibold text-red-700 mb-3">❌ Limitations actuelles :</h3>
+                    <ul class="space-y-2 text-sm text-gray-700">
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2">•</span>
+                            <span>Interpolation linéaire simple uniquement</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2">•</span>
+                            <span>Pas de prise en compte de la courbure du terrain</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2">•</span>
+                            <span>Absence de validation de la cohérence géométrique</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2">•</span>
+                            <span>Gestion d'erreurs basique</span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold text-green-700 mb-3">✅ Améliorations possibles :</h3>
+                    <ul class="space-y-2 text-sm text-gray-700">
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">•</span>
+                            <span>Interpolation cubique ou spline pour plus de précision</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">•</span>
+                            <span>Prise en compte du relief et des courbes</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">•</span>
+                            <span>Validation croisée avec données SIG</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">•</span>
+                            <span>Interface de configuration des paramètres</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-gray-500 text-sm">
+            <p>📋 Visualiseur d'Interpolation Linéaire - SIF-WEB-HPMV</p>
+            <p>🗓️ Créé le : 17 Août 2025</p>
+        </div>
+    </div>
+
+    <script>
+        // Configuration et données
+        let config = {
+            svgWidth: 600,
+            svgHeight: 400,
+            marginLeft: 50,
+            marginRight: 50,
+            marginTop: 50,
+            marginBottom: 50,
+            pkMin: 0,
+            pkMax: 500,
+            coordMin: 50,
+            coordMax: 350
+        };
+
+        // Données des points (simulées)
+        let pointsData = {
+            A: { PK1: 100, X1: 150, Y1: 200 },
+            B: { PK2: 300, X2: 350, Y2: 150 },
+            target: { PKcible: 200, X: 0, Y: 0 }
+        };
+
+        // Conversion PK vers position SVG X
+        function pkToSvgX(pk) {
+            const graphWidth = config.svgWidth - config.marginLeft - config.marginRight;
+            return config.marginLeft + (pk / config.pkMax) * graphWidth;
+        }
+
+        // Conversion coordonnée vers position SVG Y
+        function coordToSvgY(coord) {
+            const graphHeight = config.svgHeight - config.marginTop - config.marginBottom;
+            return config.svgHeight - config.marginBottom - ((coord - 50) / 300) * graphHeight;
+        }
+
+        // Fonction d'interpolation linéaire
+        function linearInterpolation(PK1, coord1, PK2, coord2, PKcible) {
+            if (PK2 === PK1) return coord1; // Éviter division par zéro
+            
+            const ratio = (PKcible - PK1) / (PK2 - PK1);
+            return coord1 + (coord2 - coord1) * ratio;
+        }
+
+        // Mise à jour des calculs
+        function updateCalculations() {
+            const PK1 = parseFloat(document.getElementById('pkA').value);
+            const PK2 = parseFloat(document.getElementById('pkB').value);
+            const PKcible = parseFloat(document.getElementById('pkTarget').value);
+            const mode = document.querySelector('input[name="interpolationMode"]:checked').value;
+
+            // Mise à jour des données
+            pointsData.A.PK1 = PK1;
+            pointsData.B.PK2 = PK2;
+            pointsData.target.PKcible = PKcible;
+
+            if (mode === 'single') {
+                // Mode point unique
+                const X = linearInterpolation(PK1, pointsData.A.X1, PK2, pointsData.B.X2, PKcible);
+                const Y = linearInterpolation(PK1, pointsData.A.Y1, PK2, pointsData.B.Y2, PKcible);
+                
+                pointsData.target.X = X;
+                pointsData.target.Y = Y;
+
+                updateVisualization();
+                updateCalculationDetails();
+            } else {
+                // Mode intervalles réguliers
+                updateMultipleInterpolation();
+            }
+        }
+
+        // Nouvelle fonction pour l'interpolation à intervalles réguliers
+        function updateMultipleInterpolation() {
+            const PK1 = pointsData.A.PK1;
+            const PK2 = pointsData.B.PK2;
+            const interval = parseFloat(document.getElementById('intervalSelect').value);
+            
+            // Calculer tous les points d'interpolation
+            const interpolatedPoints = [];
+            
+            // Déterminer le début et la fin
+            const pkStart = Math.min(PK1, PK2);
+            const pkEnd = Math.max(PK1, PK2);
+            
+            // Trouver le premier PK multiple de l'intervalle dans la plage
+            const firstPK = Math.ceil(pkStart / interval) * interval;
+            
+            // Générer tous les points à intervalles réguliers
+            for (let PKcible = firstPK; PKcible <= pkEnd; PKcible += interval) {
+                if (PKcible >= pkStart && PKcible <= pkEnd) {
+                    const X = linearInterpolation(PK1, pointsData.A.X1, PK2, pointsData.B.X2, PKcible);
+                    const Y = linearInterpolation(PK1, pointsData.A.Y1, PK2, pointsData.B.Y2, PKcible);
+                    
+                    interpolatedPoints.push({
+                        PKcible: PKcible,
+                        X: X,
+                        Y: Y
+                    });
+                }
+            }
+            
+            // Mise à jour de la visualisation
+            updateVisualizationMultiple(interpolatedPoints);
+            updateMultipleCalculationDetails(interpolatedPoints);
+        }
+
+        // Mise à jour de la visualisation pour les points multiples
+        function updateVisualizationMultiple(interpolatedPoints) {
+            const svg = document.getElementById('interpolationSvg');
+            
+            // Mise à jour des points A et B
+            const pointA = document.getElementById('pointA');
+            const pointB = document.getElementById('pointB');
+            
+            const svgXA = pkToSvgX(pointsData.A.PK1);
+            const svgYA = coordToSvgY(pointsData.A.Y1);
+            const svgXB = pkToSvgX(pointsData.B.PK2);
+            const svgYB = coordToSvgY(pointsData.B.Y2);
+
+            pointA.setAttribute('cx', svgXA);
+            pointA.setAttribute('cy', svgYA);
+            pointB.setAttribute('cx', svgXB);
+            pointB.setAttribute('cy', svgYB);
+
+            // Cacher le point unique
+            const pointTarget = document.getElementById('pointTarget');
+            pointTarget.style.display = 'none';
+            const labelTarget = document.getElementById('labelTarget');
+            labelTarget.style.display = 'none';
+
+            // Ligne d'interpolation
+            const line = document.getElementById('interpolationLine');
+            line.setAttribute('x1', svgXA);
+            line.setAttribute('y1', svgYA);
+            line.setAttribute('x2', svgXB);
+            line.setAttribute('y2', svgYB);
+
+            // Labels A et B
+            const labelA = document.getElementById('labelA');
+            const labelB = document.getElementById('labelB');
+
+            labelA.setAttribute('x', svgXA);
+            labelA.setAttribute('y', svgYA - 15);
+            labelA.textContent = `A (PK1:${pointsData.A.PK1})`;
+
+            labelB.setAttribute('x', svgXB);
+            labelB.setAttribute('y', svgYB - 15);
+            labelB.textContent = `B (PK2:${pointsData.B.PK2})`;
+
+            // Afficher les points multiples
+            const multiplePointsGroup = document.getElementById('multiplePoints');
+            multiplePointsGroup.innerHTML = '';
+
+            interpolatedPoints.forEach((point, index) => {
+                const svgX = pkToSvgX(point.PKcible);
+                const svgY = coordToSvgY(point.Y);
+
+                // Créer le cercle
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', svgX);
+                circle.setAttribute('cy', svgY);
+                circle.setAttribute('r', '6');
+                circle.setAttribute('class', 'point fill-orange-500 cursor-pointer');
+                circle.setAttribute('stroke', 'white');
+                circle.setAttribute('stroke-width', '2');
+                multiplePointsGroup.appendChild(circle);
+
+                // Créer le label
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', svgX);
+                label.setAttribute('y', svgY - 10);
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('class', 'fill-orange-800 text-xs font-semibold');
+                label.textContent = `${point.PKcible}`;
+                multiplePointsGroup.appendChild(label);
+            });
+
+            // Graduation PK
+            updatePkGraduation();
+        }
+
+        // Mise à jour de la visualisation SVG (mode point unique)
+        function updateVisualization() {
+            const svg = document.getElementById('interpolationSvg');
+            
+            // Mise à jour des points
+            const pointA = document.getElementById('pointA');
+            const pointB = document.getElementById('pointB');
+            const pointTarget = document.getElementById('pointTarget');
+            
+            const svgXA = pkToSvgX(pointsData.A.PK1);
+            const svgYA = coordToSvgY(pointsData.A.Y1);
+            const svgXB = pkToSvgX(pointsData.B.PK2);
+            const svgYB = coordToSvgY(pointsData.B.Y2);
+            const svgXTarget = pkToSvgX(pointsData.target.PKcible);
+            const svgYTarget = coordToSvgY(pointsData.target.Y);
+
+            pointA.setAttribute('cx', svgXA);
+            pointA.setAttribute('cy', svgYA);
+            pointB.setAttribute('cx', svgXB);
+            pointB.setAttribute('cy', svgYB);
+            pointTarget.setAttribute('cx', svgXTarget);
+            pointTarget.setAttribute('cy', svgYTarget);
+            
+            // Afficher le point unique
+            pointTarget.style.display = 'block';
+
+            // Cacher les points multiples
+            const multiplePointsGroup = document.getElementById('multiplePoints');
+            multiplePointsGroup.innerHTML = '';
+
+            // Ligne d'interpolation
+            const line = document.getElementById('interpolationLine');
+            line.setAttribute('x1', svgXA);
+            line.setAttribute('y1', svgYA);
+            line.setAttribute('x2', svgXB);
+            line.setAttribute('y2', svgYB);
+
+            // Labels
+            const labelA = document.getElementById('labelA');
+            const labelB = document.getElementById('labelB');
+            const labelTarget = document.getElementById('labelTarget');
+
+            labelA.setAttribute('x', svgXA);
+            labelA.setAttribute('y', svgYA - 15);
+            labelA.textContent = `A (PK1:${pointsData.A.PK1})`;
+
+            labelB.setAttribute('x', svgXB);
+            labelB.setAttribute('y', svgYB - 15);
+            labelB.textContent = `B (PK2:${pointsData.B.PK2})`;
+
+            labelTarget.setAttribute('x', svgXTarget);
+            labelTarget.setAttribute('y', svgYTarget - 15);
+            labelTarget.textContent = `Target (PKcible:${pointsData.target.PKcible})`;
+            labelTarget.style.display = 'block';
+
+            // Graduation PK
+            updatePkGraduation();
+        }
+
+        // Mise à jour de la graduation PK
+        function updatePkGraduation() {
+            const graduation = document.getElementById('pkGraduation');
+            graduation.innerHTML = '';
+            
+            for (let pk = 0; pk <= 500; pk += 50) {
+                const x = pkToSvgX(pk);
+                
+                // Trait de graduation
+                const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                tick.setAttribute('x1', x);
+                tick.setAttribute('y1', 345);
+                tick.setAttribute('x2', x);
+                tick.setAttribute('y2', 355);
+                tick.setAttribute('stroke', '#6B7280');
+                tick.setAttribute('stroke-width', '1');
+                graduation.appendChild(tick);
+                
+                // Label
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', x);
+                label.setAttribute('y', 370);
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('class', 'fill-gray-600 text-xs');
+                label.textContent = pk;
+                graduation.appendChild(label);
+            }
+        }
+
+        // Mise à jour des détails de calcul (mode point unique)
+        function updateCalculationDetails() {
+            const container = document.getElementById('calculationDetails');
+            
+            const PK1 = pointsData.A.PK1;
+            const PK2 = pointsData.B.PK2;
+            const PKcible = pointsData.target.PKcible;
+            const X1 = pointsData.A.X1;
+            const Y1 = pointsData.A.Y1;
+            const X2 = pointsData.B.X2;
+            const Y2 = pointsData.B.Y2;
+            
+            const ratio = (PKcible - PK1) / (PK2 - PK1);
+            const X = pointsData.target.X;
+            const Y = pointsData.target.Y;
+
+            container.innerHTML = `
+                <div class="bg-white rounded-lg p-4 border-2 border-green-200">
+                    <h3 class="font-bold text-green-800 mb-2">📊 Données d'entrée :</h3>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div>Point A : PK1=${PK1}, X1=${X1.toFixed(1)}, Y1=${Y1.toFixed(1)}</div>
+                        <div>Point B : PK2=${PK2}, X2=${X2.toFixed(1)}, Y2=${Y2.toFixed(1)}</div>
+                        <div class="col-span-2 text-green-700 font-semibold">PKcible : ${PKcible}</div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg p-4 border-2 border-green-200">
+                    <h3 class="font-bold text-green-800 mb-2">🔢 Calcul du ratio :</h3>
+                    <div class="font-mono text-sm">
+                        ratio = (PKcible - PK1) / (PK2 - PK1) = (${PKcible} - ${PK1}) / (${PK2} - ${PK1}) = ${ratio.toFixed(4)}
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg p-4 border-2 border-green-200">
+                    <h3 class="font-bold text-green-800 mb-2">📍 Coordonnées interpolées :</h3>
+                    <div class="space-y-1 text-sm">
+                        <div class="font-mono">X = X1 + (X2 - X1) * ratio = ${X1.toFixed(1)} + (${X2.toFixed(1)} - ${X1.toFixed(1)}) × ${ratio.toFixed(4)} = <strong class="text-green-700">${X.toFixed(2)}</strong></div>
+                        <div class="font-mono">Y = Y1 + (Y2 - Y1) * ratio = ${Y1.toFixed(1)} + (${Y2.toFixed(1)} - ${Y1.toFixed(1)}) × ${ratio.toFixed(4)} = <strong class="text-green-700">${Y.toFixed(2)}</strong></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Nouvelle fonction pour afficher les détails des calculs multiples
+        function updateMultipleCalculationDetails(interpolatedPoints) {
+            const container = document.getElementById('calculationDetails');
+            const interval = parseFloat(document.getElementById('intervalSelect').value);
+            
+            const PK1 = pointsData.A.PK1;
+            const PK2 = pointsData.B.PK2;
+            const X1 = pointsData.A.X1;
+            const Y1 = pointsData.A.Y1;
+            const X2 = pointsData.B.X2;
+            const Y2 = pointsData.B.Y2;
+
+            let tableRows = '';
+            interpolatedPoints.forEach((point, index) => {
+                const ratio = (point.PKcible - PK1) / (PK2 - PK1);
+                tableRows += `
+                    <tr class="border-b hover:bg-orange-50">
+                        <td class="px-3 py-2 text-center font-mono text-sm">${point.PKcible}</td>
+                        <td class="px-3 py-2 text-center font-mono text-sm">${ratio.toFixed(4)}</td>
+                        <td class="px-3 py-2 text-center font-mono text-sm">${point.X.toFixed(2)}</td>
+                        <td class="px-3 py-2 text-center font-mono text-sm">${point.Y.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="bg-white rounded-lg p-4 border-2 border-orange-200">
+                    <h3 class="font-bold text-orange-800 mb-2">📊 Données d'entrée :</h3>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div>Point A : PK1=${PK1}, X1=${X1.toFixed(1)}, Y1=${Y1.toFixed(1)}</div>
+                        <div>Point B : PK2=${PK2}, X2=${X2.toFixed(1)}, Y2=${Y2.toFixed(1)}</div>
+                        <div class="col-span-2 text-orange-700 font-semibold">Intervalle : ${interval}m</div>
+                        <div class="col-span-2 text-orange-700 font-semibold">Nombre de points : ${interpolatedPoints.length}</div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg p-4 border-2 border-orange-200">
+                    <h3 class="font-bold text-orange-800 mb-3">📋 Table des Points Interpolés :</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-orange-100">
+                                <tr>
+                                    <th class="px-3 py-2 text-center font-semibold">PKcible</th>
+                                    <th class="px-3 py-2 text-center font-semibold">Ratio</th>
+                                    <th class="px-3 py-2 text-center font-semibold">X</th>
+                                    <th class="px-3 py-2 text-center font-semibold">Y</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg p-4 border-2 border-orange-200">
+                    <h3 class="font-bold text-orange-800 mb-2">🔢 Formule utilisée :</h3>
+                    <div class="text-sm space-y-1">
+                        <div class="font-mono">ratio = (PKcible - PK1) / (PK2 - PK1) = (PKcible - ${PK1}) / (${PK2} - ${PK1})</div>
+                        <div class="font-mono">X = X1 + (X2 - X1) * ratio = ${X1.toFixed(1)} + (${X2.toFixed(1)} - ${X1.toFixed(1)}) × ratio</div>
+                        <div class="font-mono">Y = Y1 + (Y2 - Y1) * ratio = ${Y1.toFixed(1)} + (${Y2.toFixed(1)} - ${Y1.toFixed(1)}) × ratio</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Génération de points aléatoires
+        function randomizePoints() {
+            document.getElementById('pkA').value = Math.floor(Math.random() * 200) + 50;
+            document.getElementById('pkB').value = Math.floor(Math.random() * 200) + 250;
+            document.getElementById('pkTarget').value = Math.floor(Math.random() * 300) + 100;
+            
+            // Randomize coordinates too
+            pointsData.A.X1 = Math.floor(Math.random() * 200) + 100;
+            pointsData.A.Y1 = Math.floor(Math.random() * 150) + 100;
+            pointsData.B.X2 = Math.floor(Math.random() * 200) + 200;
+            pointsData.B.Y2 = Math.floor(Math.random() * 150) + 150;
+            
+            updateCalculations();
+        }
+
+        // Event listeners
+        document.getElementById('pkA').addEventListener('input', updateCalculations);
+        document.getElementById('pkB').addEventListener('input', updateCalculations);
+        document.getElementById('pkTarget').addEventListener('input', updateCalculations);
+        document.getElementById('intervalSelect').addEventListener('change', updateCalculations);
+        
+        // Event listeners pour les boutons radio
+        document.querySelectorAll('input[name="interpolationMode"]').forEach(radio => {
+            radio.addEventListener('change', updateCalculations);
+        });
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCalculations();
+        });
+    </script>
+</body>
+</html>

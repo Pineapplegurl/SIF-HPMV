@@ -1,0 +1,50 @@
+/* Améliorations pour l'affichage plein écran */
+.map-fullscreen-container:fullscreen {
+  background-color: white !important;
+  padding: 20px;
+}
+
+.map-fullscreen-container:-webkit-full-screen {
+  background-color: white !important;
+  padding: 20px;
+}
+
+.map-fullscreen-container:-moz-full-screen {
+  background-color: white !important;
+  padding: 20px;
+}
+
+.map-fullscreen-container:-ms-fullscreen {
+  background-color: white !important;
+  padding: 20px;
+}
+
+/* Amélioration des bordures colorées pour les icônes */
+.bts-icon-container {
+  transition: all 0.2s ease;
+}
+
+.bts-icon-container:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
+}
+
+/* Animation pour les points */
+@keyframes pulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+.bts-point-animated {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Debug - pour voir si les bordures s'appliquent */
+.debug-border {
+  border: 3px solid red !important;
+  background-color: yellow !important;
+}

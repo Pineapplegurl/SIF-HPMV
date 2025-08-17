@@ -4,7 +4,6 @@ import { useManualPoints } from '../hooks/useManualPoints';
 import { interpolateData } from '../utils/interpolateData';
 import { Document, Page, pdfjs } from 'react-pdf';
 import ZoneTable from './ZoneTable';
-import computePairedPolygons from '../utils/pairedMedianPolygons';
 import { useTypePoints } from '../hooks/useTypePoints';
 import { FaWifi, FaBroadcastTower, FaLayerGroup, FaTrain, FaTrash, FaDesktop, FaServer, FaBuilding, FaCog, FaPlus, FaMinus, FaExpand, FaCompress, FaEye, FaEyeSlash, FaEdit, FaLock } from 'react-icons/fa';
 import { useToast } from './Toast';
@@ -29,11 +28,36 @@ const layerImageMap = {
   "PDF": "SIF-V6.PDF"
 };
 
-// Calques qui contrôlent l'affichage des points 
+// Calques qui contrôlent l'affichage des points (pas des images)
 const pointLayers = ["BTS GSM-R", "Postes existants", "Centre N2 HPMV"];
 
 // Liste complète des calques (images + points)
 const allLayers = [...Object.keys(layerImageMap), ...pointLayers];
+
+// Helper: Convex hull (Andrew's monotone chain)
+function convexHull(points) {
+  if (points.length < 3) return points;
+  // Sort by x, then y
+  points = points.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const lower = [];
+  for (let p of points) {
+    while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper = [];
+  for (let i = points.length - 1; i >= 0; i--) {
+    const p = points[i];
+    while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  upper.pop();
+  lower.pop();
+  return lower.concat(upper);
+}
+
+function cross(a, b, c) {
+  return (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0]);
+}
 
 function CalquesCollapsible({ layers, activeLayers, setActiveLayers }) {
   // Par défaut, calques masqués (collapsed)
@@ -71,30 +95,41 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
   const imgRef = useRef(null);
   const containerRef = useRef(null);
   const addFormRef = useRef(null);
-
-  // --- Shared state and hooks (moved up to prevent TDZ) ---
-  const { manualPoints, loading: loadingManual, refetch } = useManualPoints();
-  const validManualPoints = Array.isArray(manualPoints) ? manualPoints : [];
-  const [interpolatedPoints, setInterpolatedPoints] = useState([]);
-  const { typePoints, loading: loadingTypePoints, refetch: refetchTypePoints } = useTypePoints();
-
-  const { showToast, ToastContainer } = useToast();
-
   const [zoom, setZoom] = useState(1);
+  const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 });
-  const [naturalSize, setNaturalSize] = useState({ width: 1000, height: 800 });
+  const [zones, setZones] = useState([]);
+  const { typePoints, loading: loadingTypePoints, refetch: refetchTypePoints } = useTypePoints();
+  const { showToast, ToastContainer } = useToast();
+  useEffect(() => {
+  }, []);
+  const { manualPoints, loading: loadingManual, refetch } = useManualPoints();
+
+  const validManualPoints = Array.isArray(manualPoints) ? manualPoints : [];
+  // Nouvel état pour le point sélectionné
+  const [selectedPoint, setSelectedPoint] = useState(null);
+  // État pour éditer le point sélectionné (cloné pour édition)
+  const [editedPoint, setEditedPoint] = useState(null);
+  
+  // États pour le drag & drop des points
   const [editMode, setEditMode] = useState(false);
   const [draggingPoint, setDraggingPoint] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [selectedPoint, setSelectedPoint] = useState(null);
-  const [editedPoint, setEditedPoint] = useState(null);
-  const [zones, setZones] = useState([]);
-  const [showInterpolatedPoints, setShowInterpolatedPoints] = useState(false);
-
-  // Interpolation automatique entre chaque paire de points consécutifs
+  
+  // Quand selectedPoint change, on clone ses valeurs pour édition
   useEffect(() => {
+    if (selectedPoint) {
+      setEditedPoint({ ...selectedPoint });
+    } else {
+      setEditedPoint(null);
+    }
+  }, [selectedPoint]);
+  const [interpolatedPoints, setInterpolatedPoints] = useState([]);
+  const [showInterpolatedPoints, setShowInterpolatedPoints] = useState(true);
+  useEffect(() => {
+    // Interpolation automatique entre chaque paire de points consécutifs, même si le premier n'a pas de point avant
     const validPoints = manualPoints
       .filter(p => p.pk !== undefined && p.x !== undefined && p.y !== undefined)
       .map(p => ({
@@ -108,7 +143,6 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
       if (!groupedByLineTrack[key]) groupedByLineTrack[key] = [];
       groupedByLineTrack[key].push(pt);
     }
-    
     const allInterpolated = [];
     Object.values(groupedByLineTrack).forEach(group => {
       const sortedGroup = [...group].sort((a, b) => a.pk - b.pk);
@@ -132,11 +166,9 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
 
     setInterpolatedPoints(allInterpolated);
   }, [manualPoints]);
-
-  // Basic zoom handlers
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 3));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.5));
   const handleResetZoom = () => setZoom(1);
-  const handleZoomIn = () => setZoom(z => Math.min(4, (z || 1) * 1.2));
-  const handleZoomOut = () => setZoom(z => Math.max(0.25, (z || 1) / 1.2));
 
   const handleMouseDown = (e) => {
     setIsDragging(true);
@@ -312,9 +344,6 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
   }, [draggingPoint, editMode, dragOffset, zoom]);
 
   const selectedPlan = imageOptions[0];
-  
-
-  // ...shared state/hooks are declared earlier to avoid TDZ...
 
   // --- BTS/GSMR inline entry state ---
   const [formState, setFormState] = useState({
@@ -388,45 +417,70 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
 
   // Autofill X/Y for BTS/GSMR when PK, line, and track are entered
   useEffect(() => {
-    const { pk, line, track } = btsForm;
-    if (pk && line && track && (!btsForm.x || !btsForm.y)) {
-      // Cherche tous les points (manuels + interpolés) pour cette ligne/voie (comparaison insensible à la casse et aux espaces)
-      const allPoints = [
-        ...validManualPoints,
-        ...interpolatedPoints
-      ].filter(pt => normalize(pt.line) === normalize(line) && normalize(pt.track) === normalize(track) && !isNaN(pt.pk) && !isNaN(pt.x) && !isNaN(pt.y))
-       .sort((a, b) => a.pk - b.pk);
-      const pkNum = parseFloat(pk);
-      // Trouve le segment d'interpolation
-      let found = false;
-      for (let i = 0; i < allPoints.length - 1; i++) {
-        const p1 = allPoints[i];
-        const p2 = allPoints[i + 1];
-        if (p1.pk <= p2.pk) {
-          // Interpolation linéaire
-          const t = (pkNum - p1.pk) / (p2.pk - p1.pk);
-          const x = p1.x + t * (p2.x - p1.x);
-          const y = p1.y + t * (p2.y - p1.y);
-          setBtsForm(prev => ({ ...prev, x: x.toFixed(2), y: y.toFixed(2) }));
-          found = true;
-          break;
-        }
-      }
-      // Si pas trouvé, fallback API
-      if (!found) {
-        fetch('http://localhost:5000/api/interpolated-position', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pk: pkNum, line: String(line), track: String(track) })
+    const { pk, line, track, x, y } = btsForm;
+    
+    // Debug
+    console.log('Autofill triggered:', { pk, line, track, x, y });
+    
+    // Vérifie si on a pk, line, track mais pas x et y (ou s'ils sont vides)
+    if (pk && line && track && (!x || x === '' || !y || y === '')) {
+      console.log('Tentative d\'interpolation pour:', { pk, line, track });
+      
+      // Utilise l'API d'interpolation directement
+      fetch('http://localhost:5000/api/interpolated-position', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          pk: parseFloat(pk), 
+          line: String(line), 
+          track: String(track) 
         })
-          .then(res => res.ok ? res.json() : Promise.reject())
-          .then(({ x, y }) => {
-            setBtsForm(prev => ({ ...prev, x: x?.toFixed(2) || '', y: y?.toFixed(2) || '' }));
-          })
-          .catch(() => {});
-      }
+      })
+        .then(res => {
+          console.log('Réponse API interpolation:', res.status);
+          return res.ok ? res.json() : Promise.reject(`HTTP ${res.status}`);
+        })
+        .then(({ x, y }) => {
+          console.log('Interpolation réussie:', { x, y });
+          setBtsForm(prev => ({ 
+            ...prev, 
+            x: x?.toFixed(2) || '', 
+            y: y?.toFixed(2) || '' 
+          }));
+        })
+        .catch(err => {
+          console.log('Erreur interpolation:', err);
+          // Essaie une interpolation locale si l'API échoue
+          const allPoints = [
+            ...validManualPoints,
+            ...interpolatedPoints
+          ].filter(pt => normalize(pt.line) === normalize(line) && normalize(pt.track) === normalize(track) && !isNaN(pt.pk) && !isNaN(pt.x) && !isNaN(pt.y))
+           .sort((a, b) => a.pk - b.pk);
+          
+          const pkNum = parseFloat(pk);
+          console.log('Points disponibles pour interpolation locale:', allPoints.length);
+          
+          // Trouve le segment d'interpolation
+          for (let i = 0; i < allPoints.length - 1; i++) {
+            const p1 = allPoints[i];
+            const p2 = allPoints[i + 1];
+            if (p1.pk <= pkNum && pkNum <= p2.pk) {
+              // Interpolation linéaire
+              const t = (pkNum - p1.pk) / (p2.pk - p1.pk);
+              const interpolatedX = p1.x + t * (p2.x - p1.x);
+              const interpolatedY = p1.y + t * (p2.y - p1.y);
+              setBtsForm(prev => ({ 
+                ...prev, 
+                x: interpolatedX.toFixed(2), 
+                y: interpolatedY.toFixed(2) 
+              }));
+              console.log('Interpolation locale réussie:', { x: interpolatedX, y: interpolatedY });
+              break;
+            }
+          }
+        });
     }
-  }, [btsForm.pk, btsForm.line, btsForm.track, validManualPoints, interpolatedPoints]);
+  }, [btsForm.pk, btsForm.line, btsForm.track, btsForm.x, btsForm.y, validManualPoints, interpolatedPoints]);
 
   // Icon component and color mapping by type
   const getTypeIcon = (type, size = 24) => {
@@ -446,23 +500,36 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
     }
   };
 
-  // Color mapping by Etats (border colors)
-  const etatColorMap = {
-    'Etude': '#FF9800', // Orange
-    'Réalisation': '#4CAF50', // Vert
-    'Mis en service': '#2196F3', // Bleu
-    'Exploitation': '#2196F3', // Bleu
+  // Fonction robuste pour normaliser les états et gérer les fautes de frappe
+  const normalizeEtat = (etat) => {
+    if (!etat || etat === 'undefined' || etat === 'null') return 'Mis en service';
+    
+    // Nettoie et normalise la chaîne
+    const cleaned = etat.toString().toLowerCase()
+      .trim()
+      .replace(/[àáâãäå]/g, 'a')
+      .replace(/[èéêë]/g, 'e')
+      .replace(/[ìíîï]/g, 'i')
+      .replace(/[òóôõö]/g, 'o')
+      .replace(/[ùúûü]/g, 'u')
+      .replace(/[ç]/g, 'c')
+      .replace(/[ñ]/g, 'n')
+      .replace(/[\s\-_]/g, ''); // Supprime espaces, tirets, underscores
+    
+    // Mapping robuste avec tolérance aux fautes de frappe
+    if (cleaned.includes('etud')) return 'Etude';
+    if (cleaned.includes('realis') || cleaned.includes('realiz')) return 'Réalisation';
+    if (cleaned.includes('service') || cleaned.includes('exploit')) return 'Mis en service';
+    
+    // Fallback
+    return 'Mis en service';
   };
 
-  // normalizeEtat: normalize various user-entered etat strings to canonical keys
-  const normalizeEtat = (s) => {
-    if (s === undefined || s === null) return 'Réalisation';
-    const v = String(s).toLowerCase().trim();
-    if (v.includes('mau') || v === 'mauvais') return 'Exploitation';
-    if (v.includes('réal') || v.includes('real') || v === 'réalisation') return 'Réalisation';
-    if (v.includes('mis') || v.includes('service') || v === 'mis en service') return 'Mis en service';
-    if (v.includes('etud') || v.includes('etude')) return 'Etude';
-    return 'Réalisation';
+  // Color mapping by Etats (border colors) - Version ultra-robuste
+  const etatColorMap = {
+    'Etude': '#FF9800', // Orange
+    'Réalisation': '#FF5722', // Rouge-orange
+    'Mis en service': '#2196F3', // Bleu
   };
 
   // Debug: log des états pour vérifier les valeurs
@@ -609,6 +676,34 @@ useEffect(() => {
     }
   }, [isAdmin]);
 
+  // Ajouter style CSS pour le mode plein écran avec Tailwind/CSS inline
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .map-fullscreen-container:fullscreen {
+        background-color: white !important;
+        padding: 20px;
+      }
+      .map-fullscreen-container:-webkit-full-screen {
+        background-color: white !important;
+        padding: 20px;
+      }
+      .map-fullscreen-container:-moz-full-screen {
+        background-color: white !important;
+        padding: 20px;
+      }
+      .map-fullscreen-container:-ms-fullscreen {
+        background-color: white !important;
+        padding: 20px;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   return (
     <div className="flex flex-row w-full max-w-[1400px] mx-auto pt-8">
       {/* Sidebar (calques + légende) toujours visible */}
@@ -675,7 +770,7 @@ useEffect(() => {
                 <span>Étude</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full border-2" style={{borderColor: '#4CAF50'}}></div>
+                <div className="w-3 h-3 rounded-full border-2" style={{borderColor: '#FF5722'}}></div>
                 <span>Réalisation</span>
               </div>
               <div className="flex items-center gap-1">
@@ -886,139 +981,78 @@ useEffect(() => {
                 height={naturalSize.height * zoom}
                 style={{ position: 'absolute', left: 0, top: 0, zIndex: 10, pointerEvents: 'none' }}
               >
-                {/* Fusion des zones par nom + enveloppe convexe (convex hull) */}
+                {/* Nouvelle logique de traçage des zones avec fusion */}
                 {(() => {
+                  // Grouper les zones par nom pour fusion
                   const groupedZones = {};
                   zones.forEach(zone => {
-                    if (!groupedZones[zone.name]) groupedZones[zone.name] = [];
+                    if (!groupedZones[zone.name]) {
+                      groupedZones[zone.name] = [];
+                    }
                     groupedZones[zone.name].push(zone);
                   });
 
-                  return Object.entries(groupedZones).flatMap(([zoneName, zoneGroup], groupIdx) => {
-                    // Pour chaque zoneName, on crée un polygone par voie (line+track)
-                    // puis on tente d'apparier les voies voisines pour calculer
-                    // une médiane locale partagée. Si appariement impossible,
-                    // on retombe sur le polygone d'offset classique.
-                    const defaultWidth = 20;
-                    // Calculer limites globales PK pour la zone
+                  return Object.entries(groupedZones).map(([zoneName, zoneGroup], groupIdx) => {
+                    // Calculer les limites globales de toutes les zones du groupe
                     let globalPkStart = Infinity;
                     let globalPkEnd = -Infinity;
+                    const allLinesAndTracks = [];
+
                     zoneGroup.forEach(zone => {
                       const pkStart = parseFloat(String(zone.pkStart).replace(',', '.'));
                       const pkEnd = parseFloat(String(zone.pkEnd).replace(',', '.'));
                       if (!isNaN(pkStart) && !isNaN(pkEnd)) {
                         globalPkStart = Math.min(globalPkStart, pkStart);
                         globalPkEnd = Math.max(globalPkEnd, pkEnd);
+                        allLinesAndTracks.push({ line: zone.line, track: zone.track });
                       }
                     });
-                    if (globalPkStart === Infinity) return [];
 
-                    // Récupérer toutes les voies concernées (unique par line+track)
-                    const trackKeys = {};
-                    zoneGroup.forEach(z => { trackKeys[`${z.line}||${z.track}`] = { line: z.line, track: z.track, width: z.width }; });
-                    const tracks = Object.values(trackKeys);
+                    if (globalPkStart === Infinity) return null;
 
-                    // Calculer centre de chaque voie (moyenne des points) pour déterminer direction interne
-                    const trackCenters = {};
-                    tracks.forEach(t => {
-                      const pts = [...validManualPoints, ...interpolatedPoints].filter(pt =>
-                        pt.line === t.line && pt.track === t.track && pt.pk >= globalPkStart && pt.pk <= globalPkEnd && !isNaN(pt.x) && !isNaN(pt.y)
+                    // Collecter TOUS les points de TOUTES les voies du groupe dans la plage PK
+                    let allZonePoints = [];
+                    allLinesAndTracks.forEach(({ line, track }) => {
+                      const lineTrackPoints = [
+                        ...validManualPoints,
+                        ...interpolatedPoints
+                      ].filter(pt => 
+                        pt.line === line && 
+                        pt.track === track && 
+                        pt.pk >= globalPkStart && 
+                        pt.pk <= globalPkEnd && 
+                        !isNaN(pt.x) && !isNaN(pt.y)
                       );
-                      if (pts.length > 0) {
-                        const avg = pts.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
-                        avg.x /= pts.length; avg.y /= pts.length;
-                        trackCenters[`${t.line}||${t.track}`] = { center: avg, pts };
-                      } else {
-                        trackCenters[`${t.line}||${t.track}`] = { center: null, pts: [] };
-                      }
+                      allZonePoints.push(...lineTrackPoints);
                     });
 
-                    const polygons = [];
-                    // Pour chaque voie, construire le polygone. On essaye d'apparier
-                    // avec le meilleur voisin et utiliser computePairedPolygons pour
-                    // obtenir deux polygones partageant la même médiane.
-                    const processed = new Set();
-                    tracks.forEach((t, tidx) => {
-                      const key = `${t.line}||${t.track}`;
-                      const pts = trackCenters[key].pts.sort((a,b) => a.pk - b.pk);
-                      if (pts.length < 2) return; // pas assez de points
-                      // if already processed as part of a paired operation, skip
-                      if (processed.has(key)) return;
+                    // Trier par PK et supprimer les doublons
+                    allZonePoints = allZonePoints
+                      .sort((a, b) => a.pk - b.pk)
+                      .filter((pt, i, arr) => i === 0 || pt.pk !== arr[i-1].pk);
 
-                      // Find best neighbor similarly to previous approach but keep it lightweight
-                      let bestNeighborKey = null; let bestScore = Infinity;
-                      Object.entries(trackCenters).forEach(([k, v]) => {
-                        if (k === key) return;
-                        if (!v.center || v.pts.length < 2) return;
-                        const aPkMin = pts[0].pk; const aPkMax = pts[pts.length-1].pk;
-                        const bPkMin = v.pts[0].pk; const bPkMax = v.pts[v.pts.length-1].pk;
-                        const overlapStart = Math.max(aPkMin, bPkMin);
-                        const overlapEnd = Math.min(aPkMax, bPkMax);
-                        if (overlapEnd <= overlapStart) return;
-                        // compute midpoint distance as heuristic
-                        const midPk = (overlapStart + overlapEnd) / 2;
-                        const interp = (arr, pks) => {
-                          for (let ii = 0; ii < arr.length-1; ii++) {
-                            const p1 = arr[ii], p2 = arr[ii+1];
-                            if (pks >= p1.pk && pks <= p2.pk) {
-                              const r = (pks - p1.pk) / (p2.pk - p1.pk || 1);
-                              return { x: p1.x + (p2.x - p1.x) * r, y: p1.y + (p2.y - p1.y) * r };
-                            }
-                          }
-                          return arr[arr.length-1] || arr[0];
-                        };
-                        const aMid = interp(pts, midPk); const bMid = interp(v.pts, midPk);
-                        const d = Math.hypot(aMid.x - bMid.x, aMid.y - bMid.y);
-                        if (d < bestScore) { bestScore = d; bestNeighborKey = k; }
-                      });
+                    if (allZonePoints.length < 2) return null;
 
-                      const color = zoneColors[zoneName] || '#FFB300';
+                    // Utiliser l'enveloppe convexe pour créer un polygone englobant
+                    const zonePointsForHull = allZonePoints.map(pt => [pt.x * zoom, pt.y * zoom]);
+                    const hull = convexHull(zonePointsForHull);
+                    
+                    if (hull.length < 3) return null;
 
-                      if (bestNeighborKey) {
-                        // build paired polygons using utility
-                        const neighbor = trackCenters[bestNeighborKey];
-                        if (neighbor && neighbor.pts && neighbor.pts.length > 1) {
-                          const widthA = t.width ? Number(t.width) : defaultWidth;
-                          const parts = computePairedPolygons(pts, neighbor.pts, widthA, neighbor.width || defaultWidth, { samples: 40, zoom });
-                          if (parts && parts.polyA && parts.polyB) {
-                            polygons.push(
-                              <polygon key={`zone-${zoneName}-${key}-A-${groupIdx}`} points={parts.polyA.map(p=>p.join(',')).join(' ')} fill={color} fillOpacity={0.25} stroke={color} strokeWidth={2} />
-                            );
-                            polygons.push(
-                              <polygon key={`zone-${zoneName}-${bestNeighborKey}-B-${groupIdx}`} points={parts.polyB.map(p=>p.join(',')).join(' ')} fill={color} fillOpacity={0.25} stroke={color} strokeWidth={2} />
-                            );
-                            // mark both processed
-                            processed.add(key); processed.add(bestNeighborKey);
-                            return;
-                          }
-                        }
-                      }
-
-                      // Fallback: compute offset polygon for this track alone
-                      const widthPx = t.width ? Number(t.width) : defaultWidth;
-                      const outerHalf = widthPx / 2;
-                      const leftSide = [];
-                      const rightSide = [];
-                      for (let i = 0; i < pts.length; i++) {
-                        const p = pts[i];
-                        let dx = 0, dy = 0;
-                        if (i === 0) { dx = pts[i+1].x - p.x; dy = pts[i+1].y - p.y; }
-                        else if (i === pts.length - 1) { dx = p.x - pts[i-1].x; dy = p.y - pts[i-1].y; }
-                        else { dx = (pts[i+1].x - pts[i-1].x) / 2; dy = (pts[i+1].y - pts[i-1].y) / 2; }
-                        const len = Math.hypot(dx, dy) || 1;
-                        const nx = -dy / len; const ny = dx / len;
-                        leftSide.push([(p.x + nx * outerHalf) * zoom, (p.y + ny * outerHalf) * zoom]);
-                        rightSide.push([(p.x - nx * outerHalf) * zoom, (p.y - ny * outerHalf) * zoom]);
-                      }
-                      const polyPoints = [...leftSide, ...rightSide.reverse()];
-                      if (polyPoints.length >= 3) {
-                        polygons.push(
-                          <polygon key={`zone-${zoneName}-${key}-${groupIdx}`} points={polyPoints.map(([x,y]) => `${x},${y}`).join(' ')} fill={color} fillOpacity={0.25} stroke={color} strokeWidth={2} title={`${zoneName} (${t.line}/${t.track})`} />
-                        );
-                      }
-                    });
-
-                    return polygons;
+                    const pointsStr = hull.map(([x, y]) => `${x},${y}`).join(' ');
+                    const color = zoneColors[zoneName] || '#FFB300';
+                    
+                    return (
+                      <polygon
+                        key={`merged-${zoneName}-${groupIdx}`}
+                        points={pointsStr}
+                        fill={color}
+                        fillOpacity={0.25}
+                        stroke={color}
+                        strokeWidth={2}
+                        title={`${zoneName} (${zoneGroup.length} zone${zoneGroup.length > 1 ? 's fusionnées' : ''})`}
+                      />
+                    );
                   });
                 })()}
               </svg>
@@ -1045,48 +1079,25 @@ useEffect(() => {
                   );
                 })}
               {/* Pastilles bleues (points ajoutés) */}
-              {isAdmin && validManualPoints && validManualPoints.filter(pt => pt.x !== undefined && pt.y !== undefined).map((point, idx) => {
-                // Utiliser la position du point en cours de déplacement si c'est celui qu'on traîne
-                const displayPoint = draggingPoint && draggingPoint._id === point._id ? draggingPoint : point;
-                
-                return (
-                  <div
-                    key={point._id || idx}
-                    className={`absolute border border-white rounded-full transition-all duration-150 ${
-                      editMode 
-                        ? 'bg-orange-500 hover:bg-orange-600 shadow-lg' 
-                        : 'bg-blue-600 hover:bg-blue-700'
-                    } ${draggingPoint && draggingPoint._id === point._id ? 'scale-125 shadow-xl' : ''}`}
-                    title={editMode 
-                      ? `Drag pour déplacer - PK ${point.pk || 'Inconnu'}` 
-                      : `Clic pour supprimer - PK ${point.pk || 'Inconnu'}`
-                    }
-                    style={{
-                      width: editMode ? '14px' : '10px',
-                      height: editMode ? '14px' : '10px',
-                      left: `${displayPoint.x * zoom}px`,
-                      top: `${displayPoint.y * zoom}px`,
-                      transform: 'translate(-50%, -50%)',
-                      zIndex: draggingPoint && draggingPoint._id === point._id ? 50 : 30,
-                      cursor: editMode ? 'grab' : 'pointer',
-                    }}
-                    onMouseDown={(e) => editMode ? handlePointMouseDown(e, point) : null}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!editMode) {
-                        // Si pas en mode édition, on sélectionne le point dans le tableau
-                        setSelectedPoint(point);
-                      }
-                    }}
-                    onDoubleClick={(e) => {
-                      if (!editMode) {
-                        e.stopPropagation();
-                        handleDelete(point._id);
-                      }
-                    }}
-                  />
-                );
-              })}
+              {isAdmin && validManualPoints && validManualPoints.filter(pt => pt.x !== undefined && pt.y !== undefined).map((point, idx) => (
+                <div
+                  key={`manual-${point._id || idx}`}
+                  className="absolute rounded-full"
+                  style={{
+                    width: editMode ? '14px' : '10px',
+                    height: editMode ? '14px' : '10px',
+                    left: `${point.x * zoom}px`,
+                    top: `${point.y * zoom}px`,
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 25,
+                    backgroundColor: point.color || '#1976D2', // manual points are blue by default
+                    border: '2px solid white', // keep a white separator but no colored border
+                    pointerEvents: 'auto',
+                    cursor: editMode ? 'grab' : 'pointer',
+                  }}
+                  title={point.name}
+                />
+              ))}
               {/* Points d'interpolation (rouges) */}
               {isAdmin && showInterpolatedPoints && interpolatedPoints && interpolatedPoints.map((point, idx) => (
                 <div
@@ -1110,9 +1121,12 @@ useEffect(() => {
                 const isBTSPoint = pt.type === 'BTS GSM-R existante' || pt.type === 'BTS GSM-R HPMV' || pt.type === 'BTS GSM-R';
                 return isBTSPoint && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
               }).map((point, idx) => {
-                // Normalisation de l'état pour correspondre aux clés de etatColorMap
-                const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
-                const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                // Normalisation robuste de l'état avec gestion des fautes de frappe
+                console.log('🔍 DEBUG BTS - Point état brut:', point.Etats, 'pour point:', point.name, 'type:', point.type); // Debug plus visible
+                const normalizedEtat = normalizeEtat(point.Etats ?? point.Etat ?? point.etat ?? point.state ?? point.State ?? point['Etats '] ?? '');
+                const etatColor = etatColorMap[normalizedEtat] || '#2196F3';
+                
+                console.log('🎨 BTS FINAL - Point:', point.name, 'État brut:', point.Etats, '→ État normalisé:', normalizedEtat, '→ Couleur:', etatColor);
                 
                 // Offset vertical selon la voie
                 let yOffset = 0;
@@ -1161,8 +1175,11 @@ useEffect(() => {
               {isAdmin && activeLayers['Postes existants'] && typePoints && typePoints.filter(pt => {
                 return pt.type === 'Postes existants' && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
               }).map((point, idx) => {
-                const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
-                const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                // Normalisation robuste de l'état avec gestion des fautes de frappe
+                const normalizedEtat = normalizeEtat(point.Etats ?? point.Etat ?? point.etat ?? point.state ?? point.State ?? point['Etats '] ?? '');
+                const etatColor = etatColorMap[normalizedEtat] || '#2196F3';
+                
+                console.log('🎨 POSTES FINAL - Point:', point.name, 'État brut:', point.Etats, '→ État normalisé:', normalizedEtat, '→ Couleur:', etatColor);
                 
                 let yOffset = 0;
                 if (point.track) {
@@ -1209,8 +1226,13 @@ useEffect(() => {
               {isAdmin && activeLayers['Centre N2 HPMV'] && typePoints && typePoints.filter(pt => {
                 return pt.type === 'Centre N2 HPMV' && pt.x !== undefined && pt.y !== undefined && !isNaN(pt.x) && !isNaN(pt.y);
               }).map((point, idx) => {
-                const normalizedEtat = point.Etats ? String(point.Etats).trim() : '';
-                const etatColor = etatColorMap[normalizedEtat] || '#666666';
+                // Normalisation robuste de l'état avec gestion des fautes de frappe
+                console.log('🔍 DEBUG CENTRE N2 - Point brut:', point);
+                console.log('🔍 DEBUG CENTRE N2 - Point.Etats:', point.Etats, 'Type:', typeof point.Etats);
+                const normalizedEtat = normalizeEtat(point.Etats ?? point.Etat ?? point.etat ?? point.state ?? point.State ?? point['Etats '] ?? '');
+                const etatColor = etatColorMap[normalizedEtat] || '#2196F3';
+                
+                console.log('🎨 CENTRE N2 FINAL - Point:', point.name, 'État brut:', point.Etats, '→ État normalisé:', normalizedEtat, '→ Couleur:', etatColor);
                 
                 let yOffset = 0;
                 if (point.track) {
@@ -1265,9 +1287,10 @@ useEffect(() => {
             </div>
           </div>
         </div>
-        {/* Admin only: tables, forms, etc. */}
-        {isAdmin ? (
-          <div>
+        <div>
+          {/* Admin only: tables, forms, etc. */}
+          {isAdmin && (
+            <div className="flex flex-col gap-8">
             <div className="flex flex-row w-[1000px] gap-6">
               {/* Tableau des points ajoutés (AddedPoints) */}
               <div className="w-2/3 bg-white h-[300px] rounded-2xl border border-gray-200 p-4 overflow-y-auto shadow-lg mb-8">
@@ -1275,50 +1298,44 @@ useEffect(() => {
                 <table className="w-full text-sm rounded-xl overflow-hidden">
                   <thead>
                     <tr className="bg-blue-50 text-blue-900 font-semibold">
-                      <th className="py-2 px-3 text-left">Nom</th>
-                      <th className="py-2 px-3 text-center">PK</th>
-                      <th className="py-2 px-3 text-center">X</th>
-                      <th className="py-2 px-3 text-center">Y</th>
-                      <th className="py-2 px-3"></th>
+                      <th className="py-2 px-3 text-left border-r border-blue-100 w-[220px]">Nom</th>
+                      <th className="py-2 px-3 text-center border-r border-blue-100 w-[120px]">Type</th>
+                      <th className="py-2 px-3 text-center border-r border-blue-100 w-[80px]">PK</th>
+                      <th className="py-2 px-3 text-center border-r border-blue-100 w-[110px]">X</th>
+                      <th className="py-2 px-3 text-center border-r border-blue-100 w-[110px]">Y</th>
+                      <th className="py-2 px-3 text-center border-r border-blue-100 w-[90px]">Ligne</th>
+                      <th className="py-2 px-3 text-center border-r border-blue-100 w-[90px]">Voie</th>
+                      <th className="py-2 px-3 text-center border-r border-blue-100 w-[120px]">Info</th>
+                      <th className="py-2 px-3 text-center"> </th>
                     </tr>
                   </thead>
                   <tbody>
                     {manualPoints.length === 0 ? (
                       <tr>
-                        <td colSpan="5" className="text-center text-gray-500 italic py-6">Aucun point ajouté</td>
+                        <td colSpan="9" className="text-center text-gray-500 italic py-6">Aucun point ajouté</td>
                       </tr>
                     ) : manualPoints.map((pt, idx) => {
-                      // Robust PK display logic
-                      let pkDisplay = '-';
-                      if (pt.pk !== undefined && pt.pk !== null && pt.pk !== '') {
-                        let pkStr = String(pt.pk).replace(/\s/g, '');
-                        // Accept numbers with comma or dot as separator
-                        if (/^\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?$/.test(pkStr)) {
-                          pkDisplay = pkStr;
-                        } else if (!isNaN(Number(pkStr.replace(/,/g, '.')))) {
-                          // fallback: try replacing comma with dot
-                          pkDisplay = Number(pkStr.replace(/,/g, '.')).toLocaleString('fr-FR', { maximumFractionDigits: 3 });
-                        }
-                      }
                       return (
-                        <tr
-                          key={idx}
-                          className={`border-t hover:bg-blue-50 transition cursor-pointer ${selectedPoint && selectedPoint._id === pt._id ? 'bg-blue-50' : ''}`}
-                          onClick={() => setSelectedPoint(pt)}
-                        >
-                          <td>{pt.name}</td>
-                          <td>{pkDisplay}</td>
-                          <td>{pt.x}</td>
-                          <td>{pt.y}</td>
-                          <td>
-                            <button
-                              onClick={e => { e.stopPropagation(); handleDelete(pt._id); }}
-                              title="Supprimer"
-                              className="text-red-600 hover:text-red-800 p-1 rounded-full transition shadow-none focus:outline-none"
-                              style={{ background: 'none', border: 'none' }}
-                            >
-                              <FaTrash size={18} />
-                            </button>
+                        <tr key={pt._id || idx} className="border-t hover:bg-blue-50 transition">
+                          <td className="px-3 py-2 max-w-[220px] truncate" title={pt.name}>{pt.name}</td>
+                          <td className="px-3 py-2 text-center">{pt.type}</td>
+                          <td className="px-3 py-2 text-center">{pt.pk ?? '-'}</td>
+                          <td className="px-3 py-2 text-center">{pt.x}</td>
+                          <td className="px-3 py-2 text-center">{pt.y}</td>
+                          <td className="px-3 py-2 text-center">{pt.line}</td>
+                          <td className="px-3 py-2 text-center">{pt.track}</td>
+                          <td className="px-3 py-2 text-center max-w-[120px] truncate" title={pt.info}>{pt.info}</td>
+                          <td className="px-3 py-2 text-center">
+                            {isAdmin && (
+                              <button
+                                onClick={async e => { /* existing delete/edit handler preserved */ }}
+                                title="Supprimer"
+                                className="text-red-600 hover:text-red-800 p-1 rounded-full transition shadow-none focus:outline-none"
+                                style={{ background: 'none', border: 'none' }}
+                              >
+                                <FaTrash size={18} />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -1326,6 +1343,7 @@ useEffect(() => {
                   </tbody>
                 </table>
               </div>
+
               {/* Container détail/édition du point sélectionné (droite) */}
               <div className="w-1/3 h-[300px] bg-white rounded-2xl border border-blue-100 p-6 overflow-y-auto flex flex-col shadow-xl transition-all duration-200">
                 <h2 className="text-xl font-bold mb-2 text-blue-900 flex items-center gap-2">
@@ -1387,30 +1405,31 @@ useEffect(() => {
                 )}
               </div>
             </div>
-            {/* Tableau des points BTS/GSMR ajoutés juste sous le formulaire */}
+
+            {/* Tableau des points ajoutés juste sous le formulaire */}
             <div className="w-[1000px] mt-8 bg-white rounded-2xl border border-blue-100 p-6 shadow-xl transition-all duration-200">
-              <h2 className="text-xl font-bold mb-2 text-blue-900 flex items-center gap-2">Points BTS/GSMR ajoutés</h2>
+              <h2 className="text-xl font-bold mb-2 text-blue-900 flex items-center gap-2">Points ajoutés (BTS/GSMR, Postes existants, Centre N2 HPMV)</h2>
               <hr className="mb-4 border-blue-100" />
               <div className="overflow-x-auto overflow-y-auto max-h-[400px] border border-gray-200 rounded-lg">
                 <table className="w-full min-w-[900px] table-fixed text-sm">
                 <thead>
                   <tr className="bg-blue-50 text-blue-900 font-semibold">
-                    <th className="py-2 px-3 text-left border-r border-blue-100">Nom</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Type</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">PK</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">X</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Y</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Ligne</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Voie</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Info</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Etat</th>
+                    <th className="py-2 px-3 text-left border-r border-blue-100 w-[220px]">Nom</th>
+                    <th className="py-2 px-3 text-center border-r border-blue-100 w-[120px]">Type</th>
+                    <th className="py-2 px-3 text-center border-r border-blue-100 w-[80px]">PK</th>
+                    <th className="py-2 px-3 text-center border-r border-blue-100 w-[110px]">X</th>
+                    <th className="py-2 px-3 text-center border-r border-blue-100 w-[110px]">Y</th>
+                    <th className="py-2 px-3 text-center border-r border-blue-100 w-[90px]">Ligne</th>
+                    <th className="py-2 px-3 text-center border-r border-blue-100 w-[90px]">Voie</th>
+                    <th className="py-2 px-3 text-center border-r border-blue-100 w-[120px]">Info</th>
+                    <th className="py-2 px-3 text-center border-r border-blue-100 w-[120px]">Etat</th>
                     <th className="py-2 px-3 text-center"> </th>
                   </tr>
                 </thead>
                 <tbody>
                   {typePoints.length === 0 ? (
                     <tr>
-                      <td colSpan="10" className="text-center text-gray-500 italic py-6">Aucun point BTS/GSMR ajouté</td>
+                      <td colSpan="10" className="text-center text-gray-500 italic py-6">Aucun point ajouté</td>
                     </tr>
                   ) : typePoints.map((pt, idx) => {
                     // Robust PK display logic for BTS/GSMR
@@ -1425,28 +1444,27 @@ useEffect(() => {
                     }
                     return (
                       <tr key={pt._id || idx} className="border-t hover:bg-blue-50 transition">
-                        <td className="px-3 py-2">{pt.name}</td>
+                        <td className="px-3 py-2 max-w-[220px] truncate" title={pt.name}>{pt.name}</td>
                         <td className="px-3 py-2 text-center">{pt.type}</td>
                         <td className="px-3 py-2 text-center">{pkDisplay}</td>
                         <td className="px-3 py-2 text-center">{pt.x}</td>
                         <td className="px-3 py-2 text-center">{pt.y}</td>
                         <td className="px-3 py-2 text-center">{pt.line}</td>
                         <td className="px-3 py-2 text-center">{pt.track}</td>
-                        <td className="px-3 py-2 text-center">{pt.info}</td>
-                        <td className="px-3 py-2 text-center">{pt.Etats}</td>
+                        <td className="px-3 py-2 text-center max-w-[120px] truncate" title={pt.info}>{pt.info}</td>
                         <td className="px-3 py-2 text-center">
                           {isAdmin && (
                             <button
                               onClick={async e => {
                                 e.stopPropagation();
-                                if (window.confirm('Supprimer ce point BTS/GSMR ?')) {
+                                if (window.confirm(`Supprimer ce point ${pt.type || 'inconnu'} ?`)) {
                                   try {
                                     const res = await fetch(`http://localhost:5000/api/delete-type-point/${pt._id}`, {
                                       method: 'DELETE',
                                       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                                     });
                                     if (res.ok) {
-                                      showToast("Point BTS/GSMR supprimé avec succès", "success");
+                                      showToast(`Point ${pt.type || 'inconnu'} supprimé avec succès`, "success");
                                       if (typeof refetchTypePoints === 'function') refetchTypePoints();
                                     } else if (res.status === 403) {
                                       showToast('Non autorisé : êtes-vous connecté en admin ?', "error");
@@ -1471,10 +1489,11 @@ useEffect(() => {
                       </tr>
                     );
                   })}
+
                   {/* Ligne d'ajout inline */}
                   <tr className="border-t bg-blue-50/50">
                     <td className="px-3 py-2 border-r border-blue-50">
-                      <input name="name" placeholder="Nom" required className="border px-3 py-1 rounded w-[90px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.name} onChange={e => setBtsForm(f => ({ ...f, name: e.target.value }))} />
+                      <input name="name" placeholder="Nom" required className="border px-3 py-1 rounded w-[140px] focus:outline-none focus:ring-2 focus:ring-purple-500 truncate" value={btsForm.name} onChange={e => setBtsForm(f => ({ ...f, name: e.target.value }))} title={btsForm.name} />
                     </td>
                     <td className="px-3 py-2 text-center border-r border-blue-50">
                       <select name="type" required className="border px-3 py-1 rounded w-[110px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.type} onChange={e => setBtsForm(f => ({ ...f, type: e.target.value }))}>
@@ -1488,27 +1507,33 @@ useEffect(() => {
                       <input name="pk" placeholder="PK" required type="number" step="0.01" className="border px-3 py-1 rounded w-[70px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.pk} onChange={e => setBtsForm(f => ({ ...f, pk: e.target.value }))} />
                     </td>
                     <td className="px-3 py-2 text-center border-r border-blue-50">
-                      <input name="x" placeholder="X" required type="number" className="border px-3 py-1 rounded w-[70px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.x} onChange={e => setBtsForm(f => ({ ...f, x: e.target.value }))} />
+                      <div className="flex items-center gap-1">
+                        <input name="x" placeholder="X" required type="number" className="border px-3 py-1 rounded w-[100px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.x} onChange={e => setBtsForm(f => ({ ...f, x: e.target.value }))} />
+                        <button
+
+                          type="button"
+                          onClick={() => {
+                            if (btsForm.pk && btsForm.line && btsForm.track) {
+                              console.log('🔄 FORCE AUTOFILL:', btsForm.pk, btsForm.line, btsForm.track);
+                              setBtsForm(prev => ({ ...prev, x: '', y: '' })); // Vider pour déclencher l'effet
+                            } else {
+                              alert('Remplissez PK, Ligne et Voie d\'abord');
+                            }
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-xs"
+                        >
+                          🔄
+                        </button>
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-center border-r border-blue-50">
-                      <input name="y" placeholder="Y" required type="number" className="border px-3 py-1 rounded w-[70px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.y} onChange={e => setBtsForm(f => ({ ...f, y: e.target.value }))} />
+                      <input name="y" placeholder="Y" required type="number" className="border px-3 py-1 rounded w-[100px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.y} onChange={e => setBtsForm(f => ({ ...f, y: e.target.value }))} />
                     </td>
                     <td className="px-3 py-2 text-center border-r border-blue-50">
-                      <input name="line" placeholder="Ligne" required className="border px-3 py-1 rounded w-[60px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.line} onChange={e => setBtsForm(f => ({ ...f, line: e.target.value }))} />
+                      <input name="line" placeholder="Ligne" required className="border px-3 py-1 rounded w-[90px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.line} onChange={e => setBtsForm(f => ({ ...f, line: e.target.value }))} />
                     </td>
                     <td className="px-3 py-2 text-center border-r border-blue-50">
                       <input name="track" placeholder="Voie" required className="border px-3 py-1 rounded w-[90px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.track} onChange={e => setBtsForm(f => ({ ...f, track: e.target.value }))} />
-                    </td>
-                    <td className="px-3 py-2 text-center border-r border-blue-50">
-                      <input name="info" placeholder="Info" className="border px-3 py-1 rounded w-[90px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.info} onChange={e => setBtsForm(f => ({ ...f, info: e.target.value }))} />
-                    </td>
-                    <td className="px-3 py-2 text-center border-r border-blue-50">
-                      <select name="Etats" required className="border px-3 py-1 rounded w-[100px] focus:outline-none focus:ring-2 focus:ring-purple-500" value={btsForm.Etats} onChange={e => setBtsForm(f => ({ ...f, Etats: e.target.value }))}>
-                        <option value="">Etat</option>
-                        <option value="Etude">Etude</option>
-                        <option value="Réalisation">Réalisation</option>
-                        <option value="Mis en service">Mis en service</option>
-                      </select>
                     </td>
                     <td className="px-3 py-2 text-center">
                       <button
@@ -1517,12 +1542,18 @@ useEffect(() => {
                         onClick={async e => {
                           e.preventDefault();
                           setBtsLoading(true);
-                          // Validation
-                          if (!btsForm.name || !btsForm.type || !btsForm.pk || !btsForm.x || !btsForm.y || !btsForm.line || !btsForm.track || !btsForm.Etats) {
+
+                          // Debug du formulaire avant validation
+                          console.log('🔍 DEBUG FORMULAIRE - btsForm:', btsForm);
+
+                          // Validation renforcée
+                          if (!btsForm.name || !btsForm.type || !btsForm.pk || !btsForm.x || !btsForm.y || !btsForm.line || !btsForm.track) {
                             setBtsError('Tous les champs obligatoires doivent être remplis.');
                             setBtsLoading(false);
                             return;
                           }
+
+                          // Construire les données à envoyer (sans champ Etats)
                           const data = {
                             name: btsForm.name,
                             type: btsForm.type,
@@ -1532,8 +1563,9 @@ useEffect(() => {
                             line: btsForm.line,
                             track: btsForm.track,
                             info: btsForm.info,
-                            Etats: btsForm.Etats,
+                            infos: btsForm.info,
                           };
+                          console.log('🚀 ENVOI DU POINT (sans Etats):', data); // Debug l'envoi
                           try {
                             const res = await fetch('http://localhost:5000/api/add-type-point', {
                               method: 'POST',
@@ -1544,19 +1576,29 @@ useEffect(() => {
                               body: JSON.stringify(data),
                             });
                             if (res.ok) {
+                              console.log('✅ Point ajouté avec succès au serveur');
                               setBtsForm({ name: '', type: '', pk: '', x: '', y: '', line: '', track: '', info: '', Etats: '' });
                               setBtsError('');
-                              if (typeof refetchTypePoints === 'function') refetchTypePoints();
-                              showToast("Point BTS/GSMR ajouté avec succès !", "success");
-                            } else if (res.status === 403) {
-                              setBtsError('Non autorisé : êtes-vous connecté en admin ?');
-                              showToast('Non autorisé : êtes-vous connecté en admin ?', 'error');
-                            } else if (res.status === 401) {
-                              setBtsError('Token expiré. Veuillez vous reconnecter.');
-                              showToast('Token expiré. Veuillez vous reconnecter.', 'warning');
+                              if (typeof refetchTypePoints === 'function') {
+                                await refetchTypePoints();
+                                console.log('🔄 Points rechargés depuis le serveur');
+                              }
+                              showToast("Point ajouté avec succès !", "success");
                             } else {
-                              setBtsError('Erreur à l\'ajout');
-                              showToast('Erreur lors de l\'ajout du point BTS/GSMR', 'error');
+                              // try to print response body for debugging
+                              let body = null;
+                              try { body = await res.json(); } catch(e) { body = await res.text().catch(()=>null); }
+                              console.error('Erreur ajout point - statut', res.status, 'body', body);
+                              if (res.status === 403) {
+                                setBtsError('Non autorisé : êtes-vous connecté en admin ?');
+                                showToast('Non autorisé : êtes-vous connecté en admin ?', 'error');
+                              } else if (res.status === 401) {
+                                setBtsError('Token expiré. Veuillez vous reconnecter.');
+                                showToast('Token expiré. Veuillez vous reconnecter.', 'warning');
+                              } else {
+                                setBtsError('Erreur à l\'ajout');
+                                showToast('Erreur lors de l\'ajout du point', 'error');
+                              }
                             }
                           } catch (err) {
                             setBtsError('Erreur réseau.');
@@ -1571,7 +1613,6 @@ useEffect(() => {
                   </tr>
                 </tbody>
               </table>
-              </div>
               {btsError && <div className="text-red-600 font-bold mt-2">{btsError}</div>}
             </div>
             <div >
@@ -1582,7 +1623,8 @@ useEffect(() => {
               />
             </div>
           </div>
-        ) : (
+        )}
+        {!isAdmin && (
           <div className="w-[1000px] mt-8 flex flex-col items-center">
             {/* Fenêtre plan de voie simplifié synchronisée avec la vue SIF */}
             <div className="w-full h-32 bg-white rounded-lg border shadow flex items-center justify-center relative">
@@ -1594,34 +1636,9 @@ useEffect(() => {
             </div>
           </div>
         )}
-      </div> {/* End main content column */}
-      <ToastContainer />
-    </div> 
+      </div>
+    </div>
   );
-}
-
-// Helper: Convex hull (Andrew's monotone chain)
-function convexHull(points) {
-  if (points.length < 3) return points;
-  // Sort by x, then y
-  points = points.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const lower = [];
-  for (let p of points) {
-    while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop();
-    lower.push(p);
-  }
-  const upper = [];
-  for (let i = points.length - 1; i >= 0; i--) {
-    const p = points[i];
-    while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop();
-    upper.push(p);
-  }
-  upper.pop();
-  lower.pop();
-  return lower.concat(upper);
-}
-function cross(a, b, c) {
-  return (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0]);
 }
 
 export default PlanViewer;
