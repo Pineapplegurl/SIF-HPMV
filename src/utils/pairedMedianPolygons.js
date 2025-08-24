@@ -72,10 +72,13 @@ export function computePairedPolygons(centerA, centerB, widthA = 20, widthB = 20
     outerB.push([(cb.x + normalB.nx * halfB * signB) * zoom, (cb.y + normalB.ny * halfB * signB) * zoom]);
   }
 
-  // Build polygons: polyA = outerA forward + median reversed; polyB = median forward + outerB reversed
-  const medianPts = median.map(m => [m.x * zoom, m.y * zoom]);
-  const polyA = [...outerA, ...medianPts.slice().reverse()];
-  const polyB = [...medianPts, ...outerB.slice().reverse()];
+  // Build polygons: polyA = outerA forward + median offset; polyB = median offset + outerB reversed
+  // Pour éviter la superposition, on décale légèrement chaque polygone de part et d'autre de la médiane
+  const medianPtsA = median.map(m => [(m.x - 0.5) * zoom, (m.y - 0.5) * zoom]); // Légèrement à gauche
+  const medianPtsB = median.map(m => [(m.x + 0.5) * zoom, (m.y + 0.5) * zoom]); // Légèrement à droite
+  
+  const polyA = [...outerA, ...medianPtsA.slice().reverse()];
+  const polyB = [...medianPtsB, ...outerB.slice().reverse()];
 
   return { polyA, polyB, median };
 }

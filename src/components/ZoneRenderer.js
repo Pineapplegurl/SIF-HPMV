@@ -72,9 +72,10 @@ const ZoneRenderer = ({ zones, zoneColors, zoom }) => {
         const nx = -dy / len; // Normale perpendiculaire
         const ny = dx / len;
 
-        // Appliquer l'offset constant pour chaque bordure
-        leftSide.push([(p.x + nx * width) * zoom, (p.y + ny * width) * zoom]);
-        rightSide.push([(p.x - nx * width) * zoom, (p.y - ny * width) * zoom]);
+        // Appliquer l'offset constant pour chaque bordure (augmenté)
+        const offsetMultiplier = 1.5; // Augmente l'offset des lignes extérieures
+        leftSide.push([(p.x + nx * width * offsetMultiplier) * zoom, (p.y + ny * width * offsetMultiplier) * zoom]);
+        rightSide.push([(p.x - nx * width * offsetMultiplier) * zoom, (p.y - ny * width * offsetMultiplier) * zoom]);
       }
 
       const polyPoints = [...leftSide, ...rightSide.reverse()];
@@ -97,8 +98,8 @@ const ZoneRenderer = ({ zones, zoneColors, zoom }) => {
           points={poly.points}
           fill={poly.color}
           fillOpacity={0.25}
-          stroke={poly.color}
-          strokeWidth={2}
+          stroke="none"
+          strokeWidth={0}
           style={{ pointerEvents: 'none' }}
         />
       ))}

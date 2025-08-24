@@ -71,13 +71,15 @@ function Navbar({ isAdmin, setIsAdmin, title = "SIF", onTablesClick, activePage,
       <div className="flex items-center gap-8">
         <span className="text-2xl font-bold text-white tracking-wide">{title}</span>
         <nav className="flex gap-6">
-          <button
-            className={`text-white font-semibold pb-1 border-b-2 ${activePage === 1 ? 'border-white' : 'border-transparent'} bg-transparent focus:outline-none transition-none`}
-            onClick={() => setActivePage(1)}
-            style={{ background: 'none' }}
-          >
-            Plans
-          </button>
+          {isAdmin && (
+            <button
+              className={`text-white font-semibold pb-1 border-b-2 ${activePage === 1 ? 'border-white' : 'border-transparent'} bg-transparent focus:outline-none transition-none`}
+              onClick={() => setActivePage(1)}
+              style={{ background: 'none' }}
+            >
+              Plans
+            </button>
+          )}
           {isAdmin && (
             <button
               className={`text-white font-semibold pb-1 border-b-2 ${activePage === 'sif-tables' ? 'border-white' : 'border-transparent'} bg-transparent focus:outline-none transition-none`}

@@ -1,6 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import './Navbar.css';
 import Navbar from './Navbar';
+import { interpolateData } from '../utils/interpolateData';
+import computePairedPolygons from '../utils/pairedMedianPolygons';
+import { useManualPoints } from '../hooks/useManualPoints';
 import { FaSearch, FaTrain, FaBroadcastTower, FaBuilding, FaCog, FaPlus, FaMinus, FaExpand } from 'react-icons/fa';
 import { useTypePoints } from '../hooks/useTypePoints';
 
@@ -17,7 +20,6 @@ const layerImageMap = {
   "HPMV pose": "SIF-V3-HPMVPose.png",
   "HPMV dépose": "SIF-V3-HPMVDépose.png",
   "Filets": "Filets.png",
-  "Zones d'actions": "Zones-actions.png",
   "Zones de postes": "Zones-postes.png",
   "PDF": "SIF-V6.PDF"
 };
@@ -25,8 +27,11 @@ const layerImageMap = {
 // Calques qui contrôlent l'affichage des points (pas des images)
 const pointLayers = ["BTS GSM-R", "Postes existants", "Centre N2 HPMV"];
 
-// Liste complète des calques (images + points)
-const allLayers = [...Object.keys(layerImageMap), ...pointLayers];
+// Calques qui contrôlent l'affichage des polygones
+const polygonLayers = ["Zones d'actions"];
+
+// Liste complète des calques (images + points + polygones)
+const allLayers = [...Object.keys(layerImageMap).filter(layer => !polygonLayers.includes(layer)), ...pointLayers, ...polygonLayers];
 
 const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) => {
   const imgRef = useRef(null);
@@ -42,7 +47,143 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
   const [selectedSuggestion, setSelectedSuggestion] = useState(null);
 
   // Hook pour récupérer les points BTS/GSMR
-  const { typePoints } = useTypePoints();
+  const { typePoints, isLoading, error } = useTypePoints();
+  
+  // Hook pour récupérer les points manuels (nécessaire pour l'interpolation des zones)
+  const { manualPoints } = useManualPoints();
+  
+  // Variables pour les points comme dans PlanViewer
+  const validManualPoints = Array.isArray(manualPoints) ? manualPoints : [];
+  const [interpolatedPoints, setInterpolatedPoints] = useState([]);
+  
+  // Variables pour les couleurs des zones comme dans PlanViewer
+  const [zoneColors, setZoneColors] = useState({});
+  const [viewportPosition, setViewportPosition] = useState({ left: 0, width: 100 });
+
+  // Interpolation des points comme dans PlanViewer
+  useEffect(() => {
+    if (!validManualPoints || validManualPoints.length === 0) return;
+
+    const groupedByLineTrack = {};
+    validManualPoints.forEach(p => {
+      const key = `${p.line}-${p.track}`;
+      if (!groupedByLineTrack[key]) groupedByLineTrack[key] = [];
+      groupedByLineTrack[key].push(p);
+    });
+    
+    const allInterpolated = [];
+    Object.values(groupedByLineTrack).forEach(group => {
+      const sortedGroup = [...group].sort((a, b) => a.pk - b.pk);
+      for (let i = 0; i < sortedGroup.length - 1; i++) {
+        const p1 = sortedGroup[i];
+        const p2 = sortedGroup[i + 1];
+        if (p1.pk === p2.pk) continue;
+        const segment = interpolateData(
+          [p1.pk, p2.pk],
+          [p1.x, p2.x],
+          [p1.y, p2.y],
+          0.1
+        ).map(p => ({
+          ...p,
+          line: p1.line,
+          track: p1.track,
+        }));
+        allInterpolated.push(...segment);
+      }
+    });
+
+    setInterpolatedPoints(allInterpolated);
+  }, [manualPoints]);
+
+  // Calculer la position du viewport pour la mini-navigation
+  useEffect(() => {
+    const updateViewportPosition = () => {
+      if (!containerRef.current || !naturalSize.width) return;
+      
+      const container = containerRef.current;
+      const totalImageWidth = naturalSize.width * zoom;
+      const viewportWidth = container.clientWidth;
+      const scrollLeft = container.scrollLeft;
+      
+      // Calcul de la position relative du viewport par rapport à l'image totale
+      const leftPercent = (scrollLeft / totalImageWidth) * 100;
+      const widthPercent = (viewportWidth / totalImageWidth) * 100;
+      
+      setViewportPosition({
+        left: Math.max(0, Math.min(leftPercent, 100 - widthPercent)),
+        width: Math.min(widthPercent, 100)
+      });
+    };
+
+    updateViewportPosition();
+    
+    // Écouter les changements de scroll
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('scroll', updateViewportPosition);
+      return () => container.removeEventListener('scroll', updateViewportPosition);
+    }
+  }, [zoom, naturalSize]);
+
+  // Helper: generate random color comme dans PlanViewer
+  function getRandomColor(existingColors = []) {
+    const colors = [
+      '#FFB300', '#803E75', '#FF6800', '#A6BDD7', '#C10020', '#CEA262', '#817066',
+      '#007D34', '#F6768E', '#00538A', '#FF7A5C', '#53377A', '#FF8E00', '#B32851',
+      '#F4C800', '#7F180D', '#93AA00', '#593315', '#F13A13', '#232C16'
+    ];
+    // Pick a color not in existingColors
+    const available = colors.filter(c => !existingColors.includes(c));
+    return available.length > 0 ? available[Math.floor(Math.random() * available.length)] : colors[Math.floor(Math.random() * colors.length)];
+  }
+
+  // Système de coordonnées pour les zones (basé sur la structure de l'image)
+  const coordinateSystem = {
+    pkToPixel: (pk) => {
+      // Conversion approximative basée sur la largeur de l'image (2200px)
+      // et supposant une plage de PK de 0 à 100
+      return (pk / 100) * 2200;
+    },
+    pixelToPk: (pixel) => {
+      return (pixel / 2200) * 100;
+    }
+  };
+  
+  // État pour les zones d'actions
+  const [zonesActions, setZonesActions] = useState([]);
+  
+  // Récupération des zones d'actions depuis l'API
+  useEffect(() => {
+    const fetchZonesActions = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/zones');
+        if (response.ok) {
+          const zones = await response.json();
+          setZonesActions(zones);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la récupération des zones d\'actions:', error);
+      }
+    };
+    
+    fetchZonesActions();
+  }, []);
+
+  // Assign random colors to zones comme dans PlanViewer
+  useEffect(() => {
+    const newColors = {};
+    zonesActions.forEach((zone, idx) => {
+      // Check for overlap with previous zones
+      let usedColors = [];
+      zonesActions.forEach((other, jdx) => {
+        if (jdx < idx && other.name === zone.name) {
+          usedColors.push(newColors[other.name]);
+        }
+      });
+      newColors[zone.name] = getRandomColor(usedColors);
+    });
+    setZoneColors(newColors);
+  }, [zonesActions]);
 
   // Fonction robuste pour normaliser les états et gérer les fautes de frappe
   const normalizeEtat = (etat) => {
@@ -380,6 +521,217 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                     ));
                 })()}
                 
+                {/* Polygones des zones d'actions */}
+                {activeLayers['Zones d\'actions'] && zonesActions && zonesActions.length > 0 && (
+                  <svg
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      width: naturalSize.width * zoom,
+                      height: naturalSize.height * zoom,
+                      pointerEvents: 'none',
+                      zIndex: 15
+                    }}
+                  >
+                    {(() => {
+                      if (!zonesActions || !zonesActions.length) return null;
+
+                      console.log('🎯 Zones actions dans GuestMapPage:', zonesActions);
+                      zonesActions.forEach((zone, idx) => {
+                        console.log(`Zone ${idx}:`, {
+                          name: zone.name,
+                          line: zone.line,
+                          track: zone.track,
+                          pkStart: zone.pkStart,
+                          pkEnd: zone.pkEnd
+                        });
+                      });
+
+                      // COPIE EXACTE DE LA LOGIQUE DE PLANVIEWER
+                      console.log('📍 validManualPoints:', validManualPoints.length);
+                      console.log('📍 interpolatedPoints:', interpolatedPoints.length);
+                      
+                      // Vérifions les voies disponibles
+                      const availableTracks = [...new Set([...validManualPoints, ...interpolatedPoints].map(p => `${p.line}||${p.track}`))];
+                      console.log('🛤️ Voies disponibles:', availableTracks);
+
+                      const groupedZones = {};
+                      zonesActions.forEach(zone => {
+                        if (!groupedZones[zone.name]) groupedZones[zone.name] = [];
+                        groupedZones[zone.name].push(zone);
+                      });
+
+                      return Object.entries(groupedZones).flatMap(([zoneName, zoneGroup], groupIdx) => {
+                        // Pour chaque zoneName, on crée un polygone par voie (line+track)
+                        // puis on tente d'apparier les voies voisines pour calculer
+                        // une médiane locale partagée. Si appariement impossible,
+                        // on retombe sur le polygone d'offset classique.
+                        const defaultWidth = 20;
+                        // Calculer limites globales PK pour la zone
+                        let globalPkStart = Infinity;
+                        let globalPkEnd = -Infinity;
+                        zoneGroup.forEach(zone => {
+                          const pkStart = parseFloat(String(zone.pkStart).replace(',', '.'));
+                          const pkEnd = parseFloat(String(zone.pkEnd).replace(',', '.'));
+                          if (!isNaN(pkStart) && !isNaN(pkEnd)) {
+                            globalPkStart = Math.min(globalPkStart, pkStart);
+                            globalPkEnd = Math.max(globalPkEnd, pkEnd);
+                          }
+                        });
+                        if (globalPkStart === Infinity) return [];
+
+                        // Récupérer toutes les voies concernées (unique par line+track)
+                        const trackKeys = {};
+                        zoneGroup.forEach(z => { trackKeys[`${z.line}||${z.track}`] = { line: z.line, track: z.track, width: z.width }; });
+                        const tracks = Object.values(trackKeys);
+
+                        // Calculer centre de chaque voie (moyenne des points) pour déterminer direction interne
+                        const trackCenters = {};
+                        tracks.forEach(t => {
+                          const allPtsForTrack = [...validManualPoints, ...interpolatedPoints].filter(pt =>
+                            pt.line === t.line && pt.track === t.track && !isNaN(pt.x) && !isNaN(pt.y)
+                          );
+                          const pts = allPtsForTrack.filter(pt =>
+                            pt.pk >= globalPkStart && pt.pk <= globalPkEnd
+                          );
+                          console.log(`📍 ${t.line}||${t.track}: ${allPtsForTrack.length} points total, ${pts.length} dans plage PK ${globalPkStart}-${globalPkEnd}`);
+                          if (allPtsForTrack.length > 0) {
+                            const pkRange = {
+                              min: Math.min(...allPtsForTrack.map(p => p.pk)),
+                              max: Math.max(...allPtsForTrack.map(p => p.pk))
+                            };
+                            console.log(`� ${t.line}||${t.track} PK range disponible: ${pkRange.min}-${pkRange.max}`);
+                          }
+                          if (pts.length > 0) {
+                            const avg = pts.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+                            avg.x /= pts.length; avg.y /= pts.length;
+                            trackCenters[`${t.line}||${t.track}`] = { center: avg, pts };
+                          } else {
+                            trackCenters[`${t.line}||${t.track}`] = { center: null, pts: [] };
+                          }
+                        });
+
+                        const polygons = [];
+                        // Pour chaque voie, construire le polygone. On essaye d'apparier
+                        // avec le meilleur voisin et utiliser computePairedPolygons pour
+                        // obtenir deux polygones partageant la même médiane.
+                        const processed = new Set();
+                        Object.keys(trackCenters).forEach(key => {
+                          if (processed.has(key)) return;
+                          const track = trackCenters[key];
+                          if (!track.center || track.pts.length < 2) return;
+
+                          // Chercher le meilleur voisin pour appariement
+                          let bestPair = null;
+                          let bestDistance = Infinity;
+                          Object.keys(trackCenters).forEach(otherKey => {
+                            if (otherKey === key || processed.has(otherKey)) return;
+                            const otherTrack = trackCenters[otherKey];
+                            if (!otherTrack.center || otherTrack.pts.length < 2) return;
+                            const dist = Math.hypot(track.center.x - otherTrack.center.x, track.center.y - otherTrack.center.y);
+                            if (dist < bestDistance) {
+                              bestDistance = dist;
+                              bestPair = { key: otherKey, track: otherTrack };
+                            }
+                          });
+
+                          if (bestPair && bestDistance < 200) {
+                            // Appariement trouvé : calculer polygones médians
+                            console.log(`🔗 Appariement trouvé entre ${key} et ${bestPair.key}, distance: ${bestDistance}`);
+                            try {
+                              const [poly1, poly2] = computePairedPolygons(
+                                track.pts.sort((a, b) => a.pk - b.pk),
+                                bestPair.track.pts.sort((a, b) => a.pk - b.pk),
+                                defaultWidth,
+                                zoom
+                              );
+                              console.log(`📐 Polygones calculés: poly1=${poly1?.length} points, poly2=${poly2?.length} points`);
+                              if (poly1 && poly1.length >= 3) {
+                                polygons.push(
+                                  <polygon 
+                                    key={`zone-${groupIdx}-${key}`}
+                                    points={poly1.map(p => `${p[0]},${p[1]}`).join(' ')}
+                                    fill={zoneColors[zoneName] || '#FFB300'}
+                                    fillOpacity="0.3"
+                                    stroke={zoneColors[zoneName] || '#FFB300'}
+                                    strokeWidth="2"
+                                  />
+                                );
+                              }
+                              if (poly2 && poly2.length >= 3) {
+                                polygons.push(
+                                  <polygon 
+                                    key={`zone-${groupIdx}-${bestPair.key}`}
+                                    points={poly2.map(p => `${p[0]},${p[1]}`).join(' ')}
+                                    fill={zoneColors[zoneName] || '#FFB300'}
+                                    fillOpacity="0.3"
+                                    stroke={zoneColors[zoneName] || '#FFB300'}
+                                    strokeWidth="2"
+                                  />
+                                );
+                              }
+                              processed.add(key);
+                              processed.add(bestPair.key);
+                            } catch (err) {
+                              console.warn('Erreur computePairedPolygons:', err);
+                              // Fallback sur polygone simple
+                            }
+                          }
+
+                          if (!processed.has(key)) {
+                            // Pas d'appariement : polygone simple par offset
+                            const pts = track.pts.sort((a, b) => a.pk - b.pk);
+                            const widthPx = defaultWidth;
+                            const outerHalf = widthPx / 2;
+                            const leftSide = [];
+                            const rightSide = [];
+                            
+                            for (let i = 0; i < pts.length; i++) {
+                              const p = pts[i];
+                              let dx = 0, dy = 0;
+                              if (i === 0) { 
+                                dx = pts[i+1].x - p.x; 
+                                dy = pts[i+1].y - p.y; 
+                              } else if (i === pts.length - 1) { 
+                                dx = p.x - pts[i-1].x; 
+                                dy = p.y - pts[i-1].y; 
+                              } else { 
+                                dx = (pts[i+1].x - pts[i-1].x) / 2; 
+                                dy = (pts[i+1].y - pts[i-1].y) / 2; 
+                              }
+                              
+                              const len = Math.hypot(dx, dy) || 1;
+                              const nx = -dy / len; 
+                              const ny = dx / len;
+                              
+                              leftSide.push([(p.x + nx * outerHalf) * zoom, (p.y + ny * outerHalf) * zoom]);
+                              rightSide.push([(p.x - nx * outerHalf) * zoom, (p.y - ny * outerHalf) * zoom]);
+                            }
+                            
+                            const polyPoints = [...leftSide, ...rightSide.reverse()];
+                            if (polyPoints.length >= 3) {
+                              polygons.push(
+                                <polygon 
+                                  key={`zone-${groupIdx}-${key}`}
+                                  points={polyPoints.map(p => `${p[0]},${p[1]}`).join(' ')}
+                                  fill={zoneColors[zoneName] || '#FFB300'}
+                                  fillOpacity="0.3"
+                                  stroke={zoneColors[zoneName] || '#FFB300'}
+                                  strokeWidth="2"
+                                />
+                              );
+                            }
+                            processed.add(key);
+                          }
+                        });
+
+                        return polygons;
+                      });
+                    })()}
+                  </svg>
+                )}
+                
                 {/* Points BTS/GSMR pour les invités */}
                 {activeLayers['BTS GSM-R'] && typePoints && typePoints.filter(pt => {
                   const isBTSPoint = pt.type === 'BTS GSM-R existante' || pt.type === 'BTS GSM-R HPMV' || pt.type === 'BTS GSM-R';
@@ -537,14 +889,46 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
             <div className="w-full bg-white rounded-xl shadow border border-gray-200 py-4 px-6 flex flex-col items-center">
               <span className="text-sm text-gray-500 mb-2">Plan de voie simplifié (vue SIF)</span>
               <div className="relative w-full h-16 flex items-center">
-                {/* Track line */}
-                <div style={{ position: 'absolute', left: '5%', top: '50%', width: '90%', height: '4px', background: '#90CAF9', borderRadius: '2px', transform: 'translateY(-50%)' }} />
-                {/* PK graduation */}
-                {[0, 20, 40, 60, 80, 100].map(pk => (
-                  <span key={pk} style={{ position: 'absolute', left: `${pk}%`, top: '60%' }} className="text-xs text-gray-400">PK {pk}</span>
-                ))}
-                {/* SIF viewport rectangle (red) - sync with map scroll/zoom if needed */}
-                <div style={{ position: 'absolute', left: `${selectedSuggestion ? Math.min(90, selectedSuggestion.pk) : 40}%`, top: '25%', width: '10%', height: '50%', border: '2px solid #E53935', background: 'rgba(229,57,53,0.1)', borderRadius: '4px', transition: 'left 0.2s' }} />
+                {/* Image de fond SIMPLE.png */}
+                <div className="absolute inset-0 overflow-hidden rounded">
+                  <img 
+                    src="/SIMPLE.png" 
+                    alt="Plan de voie simplifié"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                
+                {/* Train représentant le viewport actuel - synchronisé avec le scroll/zoom */}
+                <div 
+                  className="absolute flex items-center justify-center transition-all duration-200"
+                  style={{
+                    left: `${5 + (viewportPosition.left * 0.9)}%`, // 5% margin + 90% usable space
+                    top: '25%',
+                    width: `${Math.max(viewportPosition.width * 0.9, 4)}%`, // Minimum 4% pour l'icône
+                    height: '50%'
+                  }}
+                >
+                  {/* Icône de train propre */}
+                  <FaTrain 
+                    className="text-red-600 drop-shadow-lg" 
+                    style={{ 
+                      fontSize: '1.2rem',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
+                    }} 
+                  />
+                </div>
+                
+                {/* Indicateur de position PK si une suggestion est sélectionnée */}
+                {selectedSuggestion && (
+                  <div 
+                    className="absolute w-1 bg-yellow-500 opacity-80 rounded"
+                    style={{
+                      left: `${5 + Math.min(85, (selectedSuggestion.pk || 40) * 0.9)}%`,
+                      top: '10%',
+                      height: '80%'
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
