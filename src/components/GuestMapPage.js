@@ -6,6 +6,7 @@ import computePairedPolygons from '../utils/pairedMedianPolygons';
 import { useManualPoints } from '../hooks/useManualPoints';
 import { FaSearch, FaTrain, FaBroadcastTower, FaBuilding, FaCog, FaPlus, FaMinus, FaExpand } from 'react-icons/fa';
 import { useTypePoints } from '../hooks/useTypePoints';
+import { centerViewOnPoint, performSearch } from '../utils/searchUtils';
 
 const layerImageMap = {
   "Situation actuelle": "SIF-V6-SIF-EA.png",
@@ -105,23 +106,41 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
       const viewportWidth = container.clientWidth;
       const scrollLeft = container.scrollLeft;
       
-      // Calcul de la position relative du viewport par rapport à l'image totale
-      const leftPercent = (scrollLeft / totalImageWidth) * 100;
-      const widthPercent = (viewportWidth / totalImageWidth) * 100;
+      // Si l'image est plus petite que le viewport, elle peut être centrée
+      const imageStartOffset = Math.max(0, (viewportWidth - totalImageWidth) / 2);
+      
+      // Calcul de la position relative du viewport par rapport à l'image visible
+      let leftPercent, widthPercent;
+      
+      if (totalImageWidth <= viewportWidth) {
+        // Image entièrement visible - le train occupe toute la largeur
+        leftPercent = 0;
+        widthPercent = 100;
+      } else {
+        // Image plus large que le viewport - calcul normal
+        const effectiveScrollLeft = Math.max(0, scrollLeft - imageStartOffset);
+        leftPercent = Math.max(0, (effectiveScrollLeft / totalImageWidth) * 100);
+        widthPercent = Math.min((viewportWidth / totalImageWidth) * 100, 100);
+        leftPercent = Math.min(leftPercent, 100 - widthPercent);
+      }
       
       setViewportPosition({
-        left: Math.max(0, Math.min(leftPercent, 100 - widthPercent)),
-        width: Math.min(widthPercent, 100)
+        left: leftPercent,
+        width: widthPercent
       });
     };
 
     updateViewportPosition();
     
-    // Écouter les changements de scroll
+    // Écouter les changements de scroll et de resize
     const container = containerRef.current;
     if (container) {
       container.addEventListener('scroll', updateViewportPosition);
-      return () => container.removeEventListener('scroll', updateViewportPosition);
+      window.addEventListener('resize', updateViewportPosition);
+      return () => {
+        container.removeEventListener('scroll', updateViewportPosition);
+        window.removeEventListener('resize', updateViewportPosition);
+      };
     }
   }, [zoom, naturalSize]);
 
@@ -227,16 +246,14 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
     }
   };
 
-  // Dummy search logic (replace with real API)
+  // Recherche intelligente avec vraies données
   const handleSearchChange = e => {
     const value = e.target.value;
     setSearch(value);
-    // Simulate suggestions
+    
     if (value.length > 1) {
-      setSuggestions([
-        { label: 'Gare de Lyon', type: 'station', pk: 12.3 },
-        { label: 'Ligne 930000, PK 45.2', type: 'pk', pk: 45.2 },
-      ]);
+      const searchResults = performSearch(value, zonesActions, validManualPoints, centerView);
+      setSuggestions(searchResults);
     } else {
       setSuggestions([]);
     }
@@ -246,12 +263,105 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
     setSelectedSuggestion(suggestion);
     setSearch(suggestion.label);
     setSuggestions([]);
-    // TODO: Center/zoom map to suggestion
+    
+    // Centrer la vue sur la suggestion sélectionnée
+    if (suggestion.action) {
+      suggestion.action();
+    }
   };
 
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 3));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.5));
   const handleResetZoom = () => setZoom(1);
+
+  // Fonction wrapper pour centerViewOnPoint
+  const centerView = (targetPK, targetX = null, targetY = null) => {
+    centerViewOnPoint({
+      targetPK,
+      targetX,
+      targetY,
+      containerRef,
+      naturalSize,
+      zoom,
+      interpolatedPoints
+    });
+  };
+
+  // Fonction de recherche intelligente
+  const performSearch = (searchValue) => {
+    const value = searchValue.toLowerCase().trim();
+    const suggestions = [];
+
+    // 1. Recherche par PK (format: "PK 45.2" ou juste "45.2")
+    const pkMatch = value.match(/(?:pk\s*)?(\d+(?:\.\d+)?)/);
+    if (pkMatch) {
+      const pk = parseFloat(pkMatch[1]);
+      suggestions.push({
+        label: `PK ${pk}`,
+        type: 'pk',
+        pk: pk,
+        action: () => centerViewOnPoint(pk)
+      });
+    }
+
+    // 2. Recherche dans les zones d'actions
+    zonesActions.forEach(zone => {
+      if (zone.name && zone.name.toLowerCase().includes(value)) {
+        const centerPK = (zone.pkStart + zone.pkEnd) / 2;
+        suggestions.push({
+          label: `Zone: ${zone.name} (PK ${zone.pkStart}-${zone.pkEnd})`,
+          type: 'zone',
+          pk: centerPK,
+          zone: zone,
+          action: () => centerViewOnPoint(centerPK)
+        });
+      }
+    });
+
+    // 3. Recherche dans les points manuels (s'ils ont des noms/descriptions)
+    validManualPoints.forEach(point => {
+      if (point.name && point.name.toLowerCase().includes(value)) {
+        suggestions.push({
+          label: `Point: ${point.name} (PK ${point.pk})`,
+          type: 'point',
+          pk: point.pk,
+          point: point,
+          action: () => centerViewOnPoint(point.pk, point.x, point.y)
+        });
+      }
+      // Recherche aussi par description si elle existe
+      if (point.description && point.description.toLowerCase().includes(value)) {
+        suggestions.push({
+          label: `${point.description} (PK ${point.pk})`,
+          type: 'point',
+          pk: point.pk,
+          point: point,
+          action: () => centerViewOnPoint(point.pk, point.x, point.y)
+        });
+      }
+    });
+
+    // 4. Recherche de gares communes (liste prédéfinie)
+    const commonStations = [
+      { name: 'Gare de Lyon', pk: 12.3 },
+      { name: 'Gare du Nord', pk: 8.5 },
+      { name: 'Gare Montparnasse', pk: 15.7 },
+      { name: 'Gare Saint-Lazare', pk: 9.2 }
+    ];
+    
+    commonStations.forEach(station => {
+      if (station.name.toLowerCase().includes(value)) {
+        suggestions.push({
+          label: `Gare: ${station.name} (PK ${station.pk})`,
+          type: 'station',
+          pk: station.pk,
+          action: () => centerViewOnPoint(station.pk)
+        });
+      }
+    });
+
+    return suggestions.slice(0, 8); // Limiter à 8 suggestions
+  };
 
   const handleMouseDown = (e) => {
     setIsDragging(true);
@@ -319,15 +429,25 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
           />
           <FaSearch className="absolute right-3 top-3 text-gray-400" />
           {suggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-12 bg-white border border-gray-200 rounded-lg shadow z-10">
+            <div className="absolute left-0 right-0 top-12 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
               {suggestions.map((s, idx) => (
                 <div
                   key={idx}
-                  className="px-4 py-2 hover:bg-blue-50 cursor-pointer flex items-center gap-2"
+                  className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex items-center gap-3 border-b border-gray-100 last:border-b-0"
                   onClick={() => handleSuggestionClick(s)}
                 >
-                  {s.type === 'station' ? <FaBroadcastTower className="text-blue-700" /> : <FaTrain className="text-gray-500" />}
-                  <span>{s.label}</span>
+                  {/* Icône selon le type */}
+                  {s.type === 'station' && <FaBuilding className="text-blue-600 flex-shrink-0" />}
+                  {s.type === 'pk' && <FaTrain className="text-green-600 flex-shrink-0" />}
+                  {s.type === 'zone' && <FaCog className="text-orange-600 flex-shrink-0" />}
+                  {s.type === 'point' && <FaBroadcastTower className="text-purple-600 flex-shrink-0" />}
+                  
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-800">{s.label}</span>
+                    {s.pk && (
+                      <span className="text-xs text-gray-500">PK {s.pk}</span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -421,7 +541,7 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                 {/* Contrôles de zoom */}
                 <button 
                   onClick={handleZoomIn} 
-                  className="bg-[#1A237E] text-white p-2 rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  className="bg-[#1A237E] text-white rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 w-10 h-10 flex items-center justify-center"
                   title="Zoom avant"
                   aria-label="Zoom avant"
                 >
@@ -429,7 +549,7 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                 </button>
                 <button 
                   onClick={handleZoomOut} 
-                  className="bg-[#1A237E] text-white p-2 rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  className="bg-[#1A237E] text-white rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 w-10 h-10 flex items-center justify-center"
                   title="Zoom arrière"
                   aria-label="Zoom arrière"
                 >
@@ -437,11 +557,11 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                 </button>
                 <button 
                   onClick={handleResetZoom} 
-                  className="bg-gray-600 text-white px-2 py-2 rounded-lg hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  className="bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 w-10 h-10 flex items-center justify-center"
                   title="Réinitialiser le zoom"
                   aria-label="Réinitialiser le zoom"
                 >
-                  <span className="text-xs font-bold">1:1</span>
+                  <span className="text-xs font-bold leading-none">1:1</span>
                 </button>
 
                 {/* Séparateur visuel */}
@@ -887,7 +1007,7 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
           {/* Fenêtre plan de voie simplifié alignée exactement comme la carto, sans menuOpen */}
           <div className="mt-8 w-full max-w-[1000px]">
             <div className="w-full bg-white rounded-xl shadow border border-gray-200 py-4 px-6 flex flex-col items-center">
-              <span className="text-sm text-gray-500 mb-2">Plan de voie simplifié (vue SIF)</span>
+              <span className="text-sm text-gray-500 mb-2">Plan de voie simplifié </span>
               <div className="relative w-full h-16 flex items-center">
                 {/* Image de fond SIMPLE.png */}
                 <div className="absolute inset-0 overflow-hidden rounded">
@@ -902,10 +1022,12 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                 <div 
                   className="absolute flex items-center justify-center transition-all duration-200"
                   style={{
-                    left: `${5 + (viewportPosition.left * 0.9)}%`, // 5% margin + 90% usable space
+                    left: `${viewportPosition.left}%`,
                     top: '25%',
-                    width: `${Math.max(viewportPosition.width * 0.9, 4)}%`, // Minimum 4% pour l'icône
-                    height: '50%'
+                    width: `${Math.max(viewportPosition.width, 8)}%`, // Minimum 8% pour l'icône
+                    height: '50%',
+                    backgroundColor: 'rgba(255, 0, 0, 0.1)', // Debug: fond rouge semi-transparent
+                    border: '1px solid red' // Debug: bordure rouge
                   }}
                 >
                   {/* Icône de train propre */}
@@ -923,7 +1045,7 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                   <div 
                     className="absolute w-1 bg-yellow-500 opacity-80 rounded"
                     style={{
-                      left: `${5 + Math.min(85, (selectedSuggestion.pk || 40) * 0.9)}%`,
+                      left: `${Math.min(95, (selectedSuggestion.pk || 0) / 100 * 100)}%`, // Calcul basé sur le PK réel
                       top: '10%',
                       height: '80%'
                     }}
@@ -948,7 +1070,7 @@ function CalquesCollapsible({ layers, activeLayers, setActiveLayers }) {
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
       >
-        <span className="text-blue-900">Afficher/Masquer les calques</span>
+        <span className="text-blue-900">{open ? 'Masquer' : 'Afficher'} les calques</span>
         <span className="text-lg">{open ? '▼' : '▶'}</span>
       </button>
       {open && (

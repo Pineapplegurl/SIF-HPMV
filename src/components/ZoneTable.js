@@ -4,7 +4,7 @@ import { useToast } from './Toast';
 const ZoneTable = ({ zones, onZonesUpdate }) => {
   const [localZones, setLocalZones] = useState(zones || []);
   const [newZone, setNewZone] = useState({
-    type: '', name: '', line: '', track: '', pkStart: '', pkEnd: '', xsif: '', ysif: '', info: ''
+    Type: '', Name: '', Line: '', Track: '', PkStart: '', PkEnd: '', Xsif: '', Ysif: '', Info: ''
   });
   const [loading, setLoading] = useState(false);
   const { showToast, ToastContainer } = useToast();
@@ -38,7 +38,7 @@ const ZoneTable = ({ zones, onZonesUpdate }) => {
     });
     setLoading(false);
     if (res.ok) {
-      setNewZone({ type: '', name: '', line: '', track: '', pkStart: '', pkEnd: '', xsif: '', ysif: '', info: '' });
+      setNewZone({ Type: '', Name: '', Line: '', Track: '', PkStart: '', PkEnd: '', Xsif: '', Ysif: '', Info: '' });
       showToast('Zone ajoutée avec succès', 'success');
       refreshZones();
     } else if (res.status === 403) {
@@ -102,7 +102,7 @@ const ZoneTable = ({ zones, onZonesUpdate }) => {
             let ysif = z.ysif !== undefined && z.ysif !== '' ? parseFloat(String(z.ysif).replace(',', '.')) : NaN;
             return (
               <tr key={z._id || idx} className="border-t hover:bg-blue-50 transition">
-                <td className="px-3 py-2">{z.type}</td>
+                <td className="px-3 py-2">{z.Type}</td>
                 <td className="px-3 py-2">{z.name}</td>
                 <td className="px-3 py-2">{z.line}</td>
                 <td className="px-3 py-2">{z.track}</td>

@@ -6,8 +6,9 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import ZoneTable from './ZoneTable';
 import computePairedPolygons from '../utils/pairedMedianPolygons';
 import { useTypePoints } from '../hooks/useTypePoints';
-import { FaWifi, FaBroadcastTower, FaLayerGroup, FaTrain, FaTrash, FaDesktop, FaServer, FaBuilding, FaCog, FaPlus, FaMinus, FaExpand, FaCompress, FaEye, FaEyeSlash, FaEdit, FaLock } from 'react-icons/fa';
+import { FaWifi, FaBroadcastTower, FaLayerGroup, FaTrain, FaTrash, FaDesktop, FaServer, FaBuilding, FaCog, FaPlus, FaMinus, FaExpand, FaCompress, FaEye, FaEyeSlash, FaEdit, FaLock, FaTimes } from 'react-icons/fa';
 import { useToast } from './Toast';
+import { centerViewOnPoint, performSearch } from '../utils/searchUtils';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
@@ -36,20 +37,19 @@ const pointLayers = ["BTS GSM-R", "Postes existants", "Centre N2 HPMV"];
 const allLayers = [...Object.keys(layerImageMap), ...pointLayers];
 
 function CalquesCollapsible({ layers, activeLayers, setActiveLayers }) {
-  // Par défaut, calques masqués (collapsed)
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // collapsed by default
   return (
-    <div className="mb-2 flex flex-col items-center justify-center">
+    <div className="mb-2">
       <button
         className="w-full flex justify-between items-center font-semibold py-2 px-3 bg-gray-100 rounded-lg hover:bg-gray-200 mb-3 shadow"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
       >
-        <span className="text-blue-900">Afficher/Masquer les calques</span>
+         <span className="text-blue-900">{open ? 'Masquer' : 'Afficher'} les calques</span>
         <span className="text-lg">{open ? '▼' : '▶'}</span>
       </button>
       {open && (
-        <div className="flex flex-col gap-3 items-center">
+        <div className="flex flex-col gap-3">
           {layers.map(layer => (
             <label key={layer} className="flex items-center gap-2 cursor-pointer text-base px-2 py-1 rounded hover:bg-gray-50 transition">
               <input
@@ -688,6 +688,24 @@ useEffect(() => {
       </aside>
       {/* Main content: carto + plan + admin/guest conditional */}
       <div className="flex-1 min-w-0 flex flex-col gap-8">
+        {/* Fonction wrapper pour centerViewOnPoint */}
+        {(() => {
+          const centerView = (targetPK, targetX = null, targetY = null) => {
+            centerViewOnPoint({
+              targetPK,
+              targetX,
+              targetY,
+              containerRef,
+              naturalSize,
+              zoom,
+              interpolatedPoints
+            });
+          };
+          
+          window.planViewerCenterView = centerView; // Rendre accessible pour la recherche
+          return null;
+        })()}
+        
         {/* Search Bar */}
         <div className="w-full flex flex-col items-center mt-8 gap-4">
           <div className="relative w-[500px]">
@@ -698,12 +716,10 @@ useEffect(() => {
               onChange={e => {
                 const value = e.target.value;
                 setSearch(value);
-                // Simulate suggestions
+                
                 if (value.length > 1) {
-                  setSuggestions([
-                    { label: 'Gare de Lyon', type: 'station', pk: 12.3 },
-                    { label: 'Ligne 930000, PK 45.2', type: 'pk', pk: 45.2 },
-                  ]);
+                  const searchResults = performSearch(value, zones, validManualPoints, window.planViewerCenterView);
+                  setSuggestions(searchResults);
                 } else {
                   setSuggestions([]);
                 }
@@ -713,20 +729,34 @@ useEffect(() => {
             />
             <svg className="absolute right-3 top-3 text-gray-400" width="20" height="20" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.9 14.32a8 8 0 111.414-1.414l4.387 4.387a1 1 0 01-1.414 1.414l-4.387-4.387zM14 8a6 6 0 11-12 0 6 6 0 0112 0z" clipRule="evenodd" /></svg>
             {suggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-12 bg-white border border-gray-200 rounded-lg shadow z-10">
+              <div className="absolute left-0 right-0 top-12 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
                 {suggestions.map((s, idx) => (
                   <div
                     key={idx}
-                    className="px-4 py-2 hover:bg-blue-50 cursor-pointer flex items-center gap-2"
+                    className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex items-center gap-3 border-b border-gray-100 last:border-b-0"
                     onClick={() => {
                       setSelectedSuggestion(s);
                       setSearch(s.label);
                       setSuggestions([]);
-                      // TODO: Center/zoom map to suggestion
+                      
+                      // Centrer la vue sur la suggestion sélectionnée
+                      if (s.action) {
+                        s.action();
+                      }
                     }}
                   >
-                    {s.type === 'station' ? <FaBroadcastTower className="text-blue-700" /> : <FaTrain className="text-gray-500" />}
-                    <span>{s.label}</span>
+                    {/* Icône selon le type */}
+                    {s.type === 'station' && <FaBuilding className="text-blue-600 flex-shrink-0" />}
+                    {s.type === 'pk' && <FaTrain className="text-green-600 flex-shrink-0" />}
+                    {s.type === 'zone' && <FaCog className="text-orange-600 flex-shrink-0" />}
+                    {s.type === 'point' && <FaBroadcastTower className="text-purple-600 flex-shrink-0" />}
+                    
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-800">{s.label}</span>
+                      {s.pk && (
+                        <span className="text-xs text-gray-500">PK {s.pk}</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -752,7 +782,7 @@ useEffect(() => {
               <div className="flex items-center gap-1">
                 <button 
                   onClick={handleZoomIn} 
-                  className="bg-[#1A237E] text-white p-2 rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  className="bg-[#1A237E] text-white rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 w-10 h-10 flex items-center justify-center"
                   title="Zoom avant"
                   aria-label="Zoom avant"
                 >
@@ -760,7 +790,7 @@ useEffect(() => {
                 </button>
                 <button 
                   onClick={handleZoomOut} 
-                  className="bg-[#1A237E] text-white p-2 rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  className="bg-[#1A237E] text-white rounded-lg hover:bg-[#16205c] transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 w-10 h-10 flex items-center justify-center"
                   title="Zoom arrière"
                   aria-label="Zoom arrière"
                 >
@@ -768,11 +798,11 @@ useEffect(() => {
                 </button>
                 <button 
                   onClick={handleResetZoom} 
-                  className="bg-gray-600 text-white px-2 py-2 rounded-lg hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105"
+                  className="bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 w-10 h-10 flex items-center justify-center"
                   title="Réinitialiser le zoom"
                   aria-label="Réinitialiser le zoom"
                 >
-                  <span className="text-xs font-bold">1:1</span>
+                  <span className="text-xs font-bold leading-none">1:1</span>
                 </button>
               </div>
 
@@ -1270,61 +1300,71 @@ useEffect(() => {
           <div>
             <div className="flex flex-row w-[1000px] gap-6">
               {/* Tableau des points ajoutés (AddedPoints) */}
-              <div className="w-2/3 bg-white h-[300px] rounded-2xl border border-gray-200 p-4 overflow-y-auto shadow-lg mb-8">
-                <h2 className="text-lg font-bold mb-4 text-blue-900 text-center tracking-wide">Points ajoutés</h2>
-                <table className="w-full text-sm rounded-xl overflow-hidden">
-                  <thead>
-                    <tr className="bg-blue-50 text-blue-900 font-semibold">
-                      <th className="py-2 px-3 text-left">Nom</th>
-                      <th className="py-2 px-3 text-center">PK</th>
-                      <th className="py-2 px-3 text-center">X</th>
-                      <th className="py-2 px-3 text-center">Y</th>
-                      <th className="py-2 px-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {manualPoints.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="text-center text-gray-500 italic py-6">Aucun point ajouté</td>
+              <div className="w-2/3 bg-white h-[300px] rounded-2xl border border-blue-100 p-6 overflow-y-auto shadow-xl mb-8">
+                <h2 className="text-xl font-bold mb-2 text-blue-900 flex items-center gap-2">Points ajoutés</h2>
+                <hr className="mb-4 border-blue-100" />
+                <div className="overflow-x-auto overflow-y-auto max-h-[200px] border border-gray-200 rounded-lg">
+                  <table className="w-full min-w-[500px] text-sm">
+                    <thead>
+                      <tr className="bg-blue-50 text-blue-900 font-semibold">
+                        <th className="py-3 px-4 text-left border-r border-blue-100 w-40">Nom</th>
+                        <th className="py-3 px-3 text-center border-r border-blue-100 w-20">PK</th>
+                        <th className="py-3 px-3 text-center border-r border-blue-100 w-24">X</th>
+                        <th className="py-3 px-3 text-center border-r border-blue-100 w-24">Y</th>
+                        <th className="py-3 px-3 text-center w-12"> </th>
                       </tr>
-                    ) : manualPoints.map((pt, idx) => {
-                      // Robust PK display logic
-                      let pkDisplay = '-';
-                      if (pt.pk !== undefined && pt.pk !== null && pt.pk !== '') {
-                        let pkStr = String(pt.pk).replace(/\s/g, '');
-                        // Accept numbers with comma or dot as separator
-                        if (/^\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?$/.test(pkStr)) {
-                          pkDisplay = pkStr;
-                        } else if (!isNaN(Number(pkStr.replace(/,/g, '.')))) {
-                          // fallback: try replacing comma with dot
-                          pkDisplay = Number(pkStr.replace(/,/g, '.')).toLocaleString('fr-FR', { maximumFractionDigits: 3 });
-                        }
-                      }
-                      return (
-                        <tr
-                          key={idx}
-                          className={`border-t hover:bg-blue-50 transition cursor-pointer ${selectedPoint && selectedPoint._id === pt._id ? 'bg-blue-50' : ''}`}
-                          onClick={() => setSelectedPoint(pt)}
-                        >
-                          <td>{pt.name}</td>
-                          <td>{pkDisplay}</td>
-                          <td>{pt.x}</td>
-                          <td>{pt.y}</td>
-                          <td>
-                            <button
-                              onClick={e => { e.stopPropagation(); handleDelete(pt._id); }}
-                              title="Supprimer"
-                              className="text-red-600 hover:text-red-800 p-1 rounded-full transition shadow-none focus:outline-none"
-                              style={{ background: 'none', border: 'none' }}
-                            >
-                              <FaTrash size={18} />
-                            </button>
-                          </td>
+                    </thead>
+                    <tbody>
+                      {manualPoints.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="text-center text-gray-500 italic py-6">Aucun point ajouté</td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      ) : manualPoints.map((pt, idx) => {
+                        // Robust PK display logic
+                        let pkDisplay = '-';
+                        if (pt.pk !== undefined && pt.pk !== null && pt.pk !== '') {
+                          let pkStr = String(pt.pk).replace(/\s/g, '');
+                          // Accept numbers with comma or dot as separator
+                          if (/^\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?$/.test(pkStr)) {
+                            pkDisplay = pkStr;
+                          } else if (!isNaN(Number(pkStr.replace(/,/g, '.')))) {
+                            // fallback: try replacing comma with dot
+                            pkDisplay = Number(pkStr.replace(/,/g, '.')).toLocaleString('fr-FR', { maximumFractionDigits: 3 });
+                          }
+                        }
+                        return (
+                          <tr
+                            key={idx}
+                            className={`border-t hover:bg-blue-50 transition cursor-pointer ${selectedPoint && selectedPoint._id === pt._id ? 'bg-blue-100' : ''}`}
+                            onClick={() => setSelectedPoint(pt)}
+                          >
+                            <td className="px-4 py-3">
+                              <div 
+                                className="truncate max-w-36 cursor-help" 
+                                title={pt.name || 'Non défini'}
+                              >
+                                {pt.name || 'Non défini'}
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-center font-mono text-xs">{pkDisplay}</td>
+                            <td className="px-3 py-3 text-center font-mono text-xs">{pt.x || '-'}</td>
+                            <td className="px-3 py-3 text-center font-mono text-xs">{pt.y || '-'}</td>
+                            <td className="px-3 py-3 text-center">
+                              <button
+                                onClick={e => { e.stopPropagation(); handleDelete(pt._id); }}
+                                title="Supprimer"
+                                className="text-red-600 hover:text-red-800 p-1 rounded-full transition shadow-none focus:outline-none"
+                                style={{ background: 'none', border: 'none' }}
+                              >
+                                <FaTimes size={18} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
               {/* Container détail/édition du point sélectionné (droite) */}
               <div className="w-1/3 h-[300px] bg-white rounded-2xl border border-blue-100 p-6 overflow-y-auto flex flex-col shadow-xl transition-all duration-200">
@@ -1375,11 +1415,41 @@ useEffect(() => {
                         className="bg-gray-200 text-gray-700 px-4 py-1.5 rounded-lg font-semibold shadow hover:bg-gray-300 transition flex items-center gap-2"
                         onClick={() => { setSelectedPoint(null); setEditedPoint(null); }}
                       >
-                        <svg xmlns='http://www.w3.org/2000/svg' className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        <FaTimes className="h-4 w-4" />
                         Annuler
                       </button>
                     </div>
                   </form>
+                ) : selectedPoint ? (
+                  <div className="flex flex-col gap-4 flex-1">
+                    {/* Affichage des détails du point sélectionné */}
+                    {Object.entries(selectedPoint).filter(([key]) => key !== '_id' && key !== '__v').map(([key, value]) => (
+                      <div key={key} className="flex flex-col gap-1">
+                        <label className="font-semibold text-sm text-blue-900 mb-1 capitalize tracking-wide">{key}</label>
+                        <div className="border border-blue-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700">
+                          {value !== undefined && value !== null ? value.toString() : 'Non défini'}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex gap-3 mt-4 justify-end">
+                      <button
+                        type="button"
+                        className="bg-[#1A237E] text-white px-4 py-1.5 rounded-lg font-semibold shadow hover:bg-blue-700 transition flex items-center gap-2"
+                        onClick={() => setEditedPoint({ ...selectedPoint })}
+                      >
+                        <FaEdit className="h-4 w-4" />
+                        Modifier
+                      </button>
+                      <button
+                        type="button"
+                        className="bg-gray-200 text-gray-700 px-4 py-1.5 rounded-lg font-semibold shadow hover:bg-gray-300 transition flex items-center gap-2"
+                        onClick={() => setSelectedPoint(null)}
+                      >
+                        <FaTimes className="h-4 w-4" />
+                        Fermer
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="text-gray-500 italic flex-1 flex items-center justify-center text-center">
                     Sélectionnez un point dans le tableau pour voir/modifier ses détails.
@@ -1392,19 +1462,19 @@ useEffect(() => {
               <h2 className="text-xl font-bold mb-2 text-blue-900 flex items-center gap-2">Points BTS/GSMR ajoutés</h2>
               <hr className="mb-4 border-blue-100" />
               <div className="overflow-x-auto overflow-y-auto max-h-[400px] border border-gray-200 rounded-lg">
-                <table className="w-full min-w-[900px] table-fixed text-sm">
+                <table className="w-full min-w-[1200px] text-sm">
                 <thead>
                   <tr className="bg-blue-50 text-blue-900 font-semibold">
-                    <th className="py-2 px-3 text-left border-r border-blue-100">Nom</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Type</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">PK</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">X</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Y</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Ligne</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Voie</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Info</th>
-                    <th className="py-2 px-3 text-center border-r border-blue-100">Etat</th>
-                    <th className="py-2 px-3 text-center"> </th>
+                    <th className="py-3 px-4 text-left border-r border-blue-100 w-48">Nom</th>
+                    <th className="py-3 px-3 text-center border-r border-blue-100 w-32">Type</th>
+                    <th className="py-3 px-3 text-center border-r border-blue-100 w-20">PK</th>
+                    <th className="py-3 px-3 text-center border-r border-blue-100 w-24">X</th>
+                    <th className="py-3 px-3 text-center border-r border-blue-100 w-24">Y</th>
+                    <th className="py-3 px-3 text-center border-r border-blue-100 w-20">Ligne</th>
+                    <th className="py-3 px-3 text-center border-r border-blue-100 w-16">Voie</th>
+                    <th className="py-3 px-3 text-center border-r border-blue-100 w-20">Info</th>
+                    <th className="py-3 px-3 text-center border-r border-blue-100 w-24">Etat</th>
+                    <th className="py-3 px-3 text-center w-12"> </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1425,16 +1495,38 @@ useEffect(() => {
                     }
                     return (
                       <tr key={pt._id || idx} className="border-t hover:bg-blue-50 transition">
-                        <td className="px-3 py-2">{pt.name}</td>
-                        <td className="px-3 py-2 text-center">{pt.type}</td>
-                        <td className="px-3 py-2 text-center">{pkDisplay}</td>
-                        <td className="px-3 py-2 text-center">{pt.x}</td>
-                        <td className="px-3 py-2 text-center">{pt.y}</td>
-                        <td className="px-3 py-2 text-center">{pt.line}</td>
-                        <td className="px-3 py-2 text-center">{pt.track}</td>
-                        <td className="px-3 py-2 text-center">{pt.info}</td>
-                        <td className="px-3 py-2 text-center">{pt.Etats}</td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-4 py-3">
+                          <div 
+                            className="truncate max-w-44 cursor-help" 
+                            title={pt.name || 'Non défini'}
+                          >
+                            {pt.name || 'Non défini'}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                            {pt.type || '-'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-center font-mono text-xs">{pkDisplay}</td>
+                        <td className="px-3 py-3 text-center font-mono text-xs">{pt.x || '-'}</td>
+                        <td className="px-3 py-3 text-center font-mono text-xs">{pt.y || '-'}</td>
+                        <td className="px-3 py-3 text-center font-mono text-xs">{pt.line || '-'}</td>
+                        <td className="px-3 py-3 text-center font-mono text-xs">{pt.track || '-'}</td>
+                        <td className="px-3 py-3 text-center text-xs">{pt.info || '-'}</td>
+                        <td className="px-3 py-3 text-center">
+                          {pt.Etats && (
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              pt.Etats === 'Mis en service' ? 'bg-green-100 text-green-800' :
+                              pt.Etats === 'Réalisation' ? 'bg-blue-100 text-blue-800' :
+                              pt.Etats === 'Etude' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {pt.Etats}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center">
                           {isAdmin && (
                             <button
                               onClick={async e => {
@@ -1464,7 +1556,7 @@ useEffect(() => {
                               className="text-red-600 hover:text-red-800 p-1 rounded-full transition shadow-none focus:outline-none"
                               style={{ background: 'none', border: 'none' }}
                             >
-                              <FaTrash size={18} />
+                              <FaTimes size={18} />
                             </button>
                           )}
                         </td>
