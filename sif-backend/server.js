@@ -2,16 +2,27 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
+const path = require('path');
 require('dotenv').config();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 const SECRET_KEY = process.env.JWT_SECRET || 'votre_cle_secrete';
 
-app.use(cors());
+// Configuration CORS adaptée à l'environnement
+if (process.env.NODE_ENV === 'production') {
+  // En production, même domaine donc pas besoin de CORS
+  app.use(cors({
+    origin: true,
+    credentials: true
+  }));
+} else {
+  // En développement, autoriser localhost:3000
+  app.use(cors());
+}
 
 app.use(express.json()); // Pour parser le JSON dans les requêtes POST
 
@@ -453,6 +464,16 @@ app.post('/api/zones/import', authenticateToken, async (req, res) => {
   }
 });
 
+// Servir les fichiers statiques React en production
+if (process.env.NODE_ENV === 'production') {
+  // Servir les fichiers statiques du build React
+  app.use(express.static(path.join(__dirname, '../build')));
+  
+  // Pour toutes les routes non-API, servir index.html (React Router)
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../build/index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`✅ Serveur backend démarré sur http://localhost:${PORT}`);
