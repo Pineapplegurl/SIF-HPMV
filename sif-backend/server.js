@@ -464,20 +464,8 @@ app.post('/api/zones/import', authenticateToken, async (req, res) => {
   }
 });
 
-// Servir les fichiers statiques React en production
-if (process.env.NODE_ENV === 'production') {
-  // Servir les fichiers statiques du build React
-  app.use(express.static(path.join(__dirname, '../build')));
-  
-  // Pour toutes les routes non-API, servir index.html (React Router)
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../build/index.html'));
-  });
-}
+// === ROUTES ADDITIONNELLES (déplacées avant app.listen) ===
 
-app.listen(PORT, () => {
-  console.log(`✅ Serveur backend démarré sur http://localhost:${PORT}`);
-});
 // Suppression d'un point BTS/GSMR dans TypePoints
 app.delete('/api/delete-type-point/:id', authenticateToken, async (req, res) => {
   const pointId = req.params.id;
@@ -497,6 +485,7 @@ app.delete('/api/delete-type-point/:id', authenticateToken, async (req, res) => 
     res.status(500).json({ error: 'Erreur serveur lors de la suppression du point BTS/GSMR.' });
   }
 });
+
 app.post('/api/save-type-points', authenticateToken, async (req, res) => {
   const { points } = req.body;
   if (!Array.isArray(points) || points.length === 0) {
@@ -505,9 +494,7 @@ app.post('/api/save-type-points', authenticateToken, async (req, res) => {
   try {
     await client.connect();
     const db = client.db('SIF');
-    // On supprime les anciens points pour éviter les doublons
     await db.collection('SavedTypePoints').deleteMany({});
-    // On insère les nouveaux
     await db.collection('SavedTypePoints').insertMany(points);
     res.status(201).json({ message: 'Points BTS/GSMR sauvegardés !' });
   } catch (err) {
@@ -515,6 +502,7 @@ app.post('/api/save-type-points', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Erreur serveur lors de la sauvegarde.' });
   }
 });
+
 app.get('/api/saved-type-points', async (req, res) => {
   try {
     await client.connect();
@@ -526,6 +514,7 @@ app.get('/api/saved-type-points', async (req, res) => {
     res.status(500).json({ error: 'Erreur serveur lors de la récupération.' });
   }
 });
+
 app.delete('/api/delete-saved-type-point/:id', async (req, res) => {
   try {
     await client.connect();
@@ -542,7 +531,7 @@ app.delete('/api/delete-saved-type-point/:id', async (req, res) => {
     res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
-// Suppression d'une zone dans Zones
+
 app.delete('/api/delete-zone/:id', authenticateToken, async (req, res) => {
   const zoneId = req.params.id;
   try {
@@ -560,7 +549,6 @@ app.delete('/api/delete-zone/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Mettre à jour un point BTS/GSMR
 app.put('/api/type-points/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const updatedPoint = req.body;
@@ -568,7 +556,6 @@ app.put('/api/type-points/:id', authenticateToken, async (req, res) => {
   try {
     await client.connect();
     const db = client.db('SIF');
-    const { ObjectId } = require('mongodb');
     
     const result = await db.collection('TypePoints').updateOne(
       { _id: new ObjectId(id) },
@@ -588,7 +575,6 @@ app.put('/api/type-points/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Mettre à jour un point d'interpolation
 app.put('/api/manual-points/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const updatedPoint = req.body;
@@ -596,7 +582,6 @@ app.put('/api/manual-points/:id', authenticateToken, async (req, res) => {
   try {
     await client.connect();
     const db = client.db('SIF');
-    const { ObjectId } = require('mongodb');
     
     const result = await db.collection('AddedPoints').updateOne(
       { _id: new ObjectId(id) },
@@ -616,7 +601,6 @@ app.put('/api/manual-points/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Mettre à jour une zone
 app.put('/api/zones/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const updatedZone = req.body;
@@ -624,7 +608,6 @@ app.put('/api/zones/:id', authenticateToken, async (req, res) => {
   try {
     await client.connect();
     const db = client.db('SIF');
-    const { ObjectId } = require('mongodb');
     
     const result = await db.collection('Zones').updateOne(
       { _id: new ObjectId(id) },
@@ -642,4 +625,21 @@ app.put('/api/zones/:id', authenticateToken, async (req, res) => {
   } finally {
     await client.close();
   }
+});
+
+// === FIN DES ROUTES ===
+
+// Servir les fichiers statiques React en production
+if (process.env.NODE_ENV === 'production') {
+  // Servir les fichiers statiques du build React
+  app.use(express.static(path.join(__dirname, '../build')));
+  
+  // Pour toutes les routes non-API, servir index.html (React Router)
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../build/index.html'));
+  });
+}
+
+app.listen(PORT, () => {
+  console.log(`✅ Serveur backend démarré sur http://localhost:${PORT}`);
 });
