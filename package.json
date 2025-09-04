@@ -24,8 +24,8 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
-    "start": "cd sif-backend && node server-minimal.js",
-    "start-full": "cd sif-backend && node server.js",
+    "start": "cd sif-backend && node server.js",
+    "start-minimal": "cd sif-backend && node server-minimal.js",
     "build": "react-scripts build && cd sif-backend && npm install",
     "build:frontend": "react-scripts build",
     "build:backend": "cd sif-backend && npm install",

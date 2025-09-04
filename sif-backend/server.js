@@ -635,8 +635,12 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../build')));
   
   // Pour toutes les routes non-API, servir index.html (React Router)
-  app.get(/^(?!\/api).*/, (req, res) => {
-    res.sendFile(path.join(__dirname, '../build/index.html'));
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) {
+      res.status(404).json({ error: 'API route not found' });
+    } else {
+      res.sendFile(path.join(__dirname, '../build/index.html'));
+    }
   });
 }
 
