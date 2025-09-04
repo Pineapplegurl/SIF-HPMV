@@ -9,6 +9,7 @@ import { useTypePoints } from '../hooks/useTypePoints';
 import { FaWifi, FaBroadcastTower, FaLayerGroup, FaTrain, FaTrash, FaDesktop, FaServer, FaBuilding, FaCog, FaPlus, FaMinus, FaExpand, FaCompress, FaEye, FaEyeSlash, FaEdit, FaLock, FaTimes } from 'react-icons/fa';
 import { useToast } from './Toast';
 import { centerViewOnPoint, performSearch } from '../utils/searchUtils';
+import { API_BASE_URL } from '../utils/config';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
@@ -176,7 +177,7 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
   const handleSave = async () => {
     if (!editedPoint || !editedPoint._id) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/update-point/${editedPoint._id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/update-point/${editedPoint._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -203,7 +204,7 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
     const confirmDelete = window.confirm("Voulez-vous vraiment supprimer ce point ?");
     if (!confirmDelete) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/delete-point/${pointId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/delete-point/${pointId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -268,7 +269,7 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
     
     try {
       // Mise à jour dans la base de données
-      const res = await fetch(`http://localhost:5000/api/update-point/${draggingPoint._id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/update-point/${draggingPoint._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -337,7 +338,7 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
   const fetchSavedTypePoints = useCallback(async () => {
     setLoadingSavedTypePoints(true);
     try {
-      const res = await fetch('http://localhost:5000/api/saved-type-points');
+      const res = await fetch(`${API_BASE_URL}/api/saved-type-points`);
       if (res.ok) {
         const data = await res.json();
         setSavedTypePoints(data);
@@ -367,7 +368,7 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
     // Correction : s'assurer que line est bien le numéro et track la voie
     if (pk && line && track && (!formState.x || !formState.y)) {
       setIsInterpolating(true);
-      fetch('http://localhost:5000/api/interpolated-position', {
+      fetch(`${API_BASE_URL}/api/interpolated-position`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pk: parseFloat(pk), line: String(line), track: String(track) })
@@ -414,7 +415,7 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
       }
       // Si pas trouvé, fallback API
       if (!found) {
-        fetch('http://localhost:5000/api/interpolated-position', {
+        fetch(`${API_BASE_URL}/api/interpolated-position`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pk: pkNum, line: String(line), track: String(track) })
@@ -511,7 +512,7 @@ useEffect(() => {
   // Rafraîchit les zones depuis l'API
 const fetchZones = useCallback(async () => {
   try {
-    const res = await fetch('http://localhost:5000/api/zones');
+    const res = await fetch(`${API_BASE_URL}/api/zones`);
     if (res.ok) {
       const data = await res.json();
       setZones(data);
@@ -549,12 +550,12 @@ useEffect(() => {
           };
         } else if (!isNaN(pkStart) && !isNaN(pkEnd) && zone.line && zone.track) {
           try {
-            const resStart = await fetch('http://localhost:5000/api/interpolated-position', {
+            const resStart = await fetch(`${API_BASE_URL}/api/interpolated-position`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ pk: pkStart, line: String(zone.line), track: String(zone.track) })
             });
-            const resEnd = await fetch('http://localhost:5000/api/interpolated-position', {
+            const resEnd = await fetch(`${API_BASE_URL}/api/interpolated-position`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ pk: pkEnd, line: String(zone.line), track: String(zone.track) })
@@ -1533,7 +1534,7 @@ useEffect(() => {
                                 e.stopPropagation();
                                 if (window.confirm('Supprimer ce point BTS/GSMR ?')) {
                                   try {
-                                    const res = await fetch(`http://localhost:5000/api/delete-type-point/${pt._id}`, {
+                                    const res = await fetch(`${API_BASE_URL}/api/delete-type-point/${pt._id}`, {
                                       method: 'DELETE',
                                       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                                     });
@@ -1627,7 +1628,7 @@ useEffect(() => {
                             Etats: btsForm.Etats,
                           };
                           try {
-                            const res = await fetch('http://localhost:5000/api/add-type-point', {
+                            const res = await fetch(`${API_BASE_URL}/api/add-type-point`, {
                               method: 'POST',
                               headers: {
                                 'Content-Type': 'application/json',

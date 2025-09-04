@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../utils/config';
 import { useState, useEffect } from 'react';
 
 export function usePkData() {
@@ -7,7 +8,7 @@ export function usePkData() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/manual-points');
+      const res = await fetch(`${API_BASE_URL}/api/manual-points`);
       const data = await res.json();
       setData(data);
     } catch (err) {

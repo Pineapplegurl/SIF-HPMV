@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../utils/config';
 import { useToast } from './Toast';
 
 const CoordinateEditor = ({ imgRef, zoom, naturalSize, onNewPoint }) => {
@@ -58,7 +59,7 @@ const CoordinateEditor = ({ imgRef, zoom, naturalSize, onNewPoint }) => {
 
     console.log("Payload envoyé :", payload);
 
-    const res = await fetch('http://localhost:5000/api/add-point', {
+    const res = await fetch(`${API_BASE_URL}/api/add-point`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

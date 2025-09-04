@@ -1,7 +1,8 @@
 // Optimisations critiques à appliquer immédiatement
 
 // 1. Variables d'environnement
-export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 
+  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000');
 
 // 2. Configuration des constantes
 export const APP_CONFIG = {

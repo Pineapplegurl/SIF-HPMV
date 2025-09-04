@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { API_BASE_URL } from '../utils/config';
 import * as XLSX from 'xlsx';
 import { FaUpload, FaCheck, FaTimes, FaEye, FaPlus, FaTrash, FaFileExcel, FaExpand, FaCompress } from 'react-icons/fa';
 import { useToast } from './Toast';
@@ -324,7 +325,7 @@ const SIFExcelImporter = ({ tableType, onImportComplete, onClose }) => {
           return [];
       }
       
-      const response = await fetch(`http://localhost:5000${endpoint}`);
+      const response = await fetch(`${API_BASE_URL}${endpoint}`);
       if (response.ok) {
         return await response.json();
       }
@@ -386,7 +387,7 @@ const SIFExcelImporter = ({ tableType, onImportComplete, onClose }) => {
         // Auto-calcul X/Y pour les points BTS/GSMR
         if (config.autoCalculateXY && finalMapped.pk && finalMapped.line && finalMapped.track) {
           try {
-            const response = await fetch('http://localhost:5000/api/interpolated-position', {
+            const response = await fetch(`${API_BASE_URL}/api/interpolated-position`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
@@ -483,7 +484,7 @@ const SIFExcelImporter = ({ tableType, onImportComplete, onClose }) => {
         // Auto-calcul X/Y
         if (config.autoCalculateXY && finalMapped.pk && finalMapped.line && finalMapped.track) {
           try {
-            const response = await fetch('http://localhost:5000/api/interpolated-position', {
+            const response = await fetch(`${API_BASE_URL}/api/interpolated-position`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
@@ -580,7 +581,7 @@ const SIFExcelImporter = ({ tableType, onImportComplete, onClose }) => {
             }
           }
           
-          const response = await fetch(`http://localhost:5000${endpoint}`, {
+          const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             method: method,
             headers: {
               'Content-Type': 'application/json',

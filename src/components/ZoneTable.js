@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../utils/config';
 import { useToast } from './Toast';
 
 const ZoneTable = ({ zones, onZonesUpdate }) => {
@@ -16,7 +17,7 @@ const ZoneTable = ({ zones, onZonesUpdate }) => {
 
   // Rafraîchit les zones depuis l'API
   const refreshZones = async () => {
-    const updatedZones = await fetch('http://localhost:5000/api/zones').then(r => r.json());
+    const updatedZones = await fetch(`${API_BASE_URL}/api/zones`).then(r => r.json());
     setLocalZones(updatedZones);
     if (typeof onZonesUpdate === 'function') onZonesUpdate(updatedZones);
   };
@@ -28,7 +29,7 @@ const ZoneTable = ({ zones, onZonesUpdate }) => {
 
   const handleAddZone = async () => {
     setLoading(true);
-    const res = await fetch('http://localhost:5000/api/add-zone', {
+    const res = await fetch(`${API_BASE_URL}/api/add-zone`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -55,7 +56,7 @@ const ZoneTable = ({ zones, onZonesUpdate }) => {
     }
     if (window.confirm('Supprimer cette zone ?')) {
       try {
-        const res = await fetch(`http://localhost:5000/api/delete-zone/${zone._id}`, {
+        const res = await fetch(`${API_BASE_URL}/api/delete-zone/${zone._id}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../utils/config';
 
 function TestMongo() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
 
   const handleSearch = async () => {
-    const res = await fetch(`http://localhost:5000/api/points?name=${query}`);
+    const res = await fetch(`${API_BASE_URL}/api/points?name=${query}`);
     const data = await res.json();
     setResults(data);
   };

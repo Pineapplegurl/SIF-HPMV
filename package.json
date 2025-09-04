@@ -24,7 +24,8 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
-    "start": "cd sif-backend && npm start",
+    "start": "cd sif-backend && node server-minimal.js",
+    "start-full": "cd sif-backend && node server.js",
     "build": "react-scripts build && cd sif-backend && npm install",
     "build:frontend": "react-scripts build",
     "build:backend": "cd sif-backend && npm install",
@@ -54,6 +55,5 @@
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.3"
-  },
-  "proxy": "http://localhost:5000"
+  }
 }

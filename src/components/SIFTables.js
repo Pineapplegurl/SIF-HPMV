@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../utils/config';
 import { FaFileExcel } from 'react-icons/fa';
 import SIFExcelImporter from './SIFExcelImporter';
 
@@ -18,7 +19,7 @@ const SIFTables = ({ isAdmin }) => {
     const table = TABLES.find(t => t.key === selectedTable);
     if (!table) return;
     setLoading(true);
-    fetch(`http://localhost:5000${table.api}`)
+    fetch(`${API_BASE_URL}${table.api}`)
       .then(res => res.ok ? res.json() : [])
       .then(data => setTableData(Array.isArray(data) ? data : []))
       .catch(() => setTableData([]))
@@ -51,7 +52,7 @@ const SIFTables = ({ isAdmin }) => {
     const table = TABLES.find(t => t.key === selectedTable);
     if (!table) return;
     setLoading(true);
-    fetch(`http://localhost:5000${table.api}`)
+    fetch(`${API_BASE_URL}${table.api}`)
       .then(res => res.ok ? res.json() : [])
       .then(data => setTableData(Array.isArray(data) ? data : []))
       .catch(() => setTableData([]))

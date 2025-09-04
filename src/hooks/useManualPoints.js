@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../utils/config';
 import { useEffect, useState } from 'react';
 // Exemple sûr de useManualPoints.js
 export function useManualPoints() {
@@ -6,7 +7,7 @@ export function useManualPoints() {
 
   const fetchManualPoints = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/manual-points");
+      const res = await fetch("${API_BASE_URL}/api/manual-points");
       const data = await res.json();
       if (Array.isArray(data)) {
         setManualPoints(data);

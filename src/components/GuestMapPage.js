@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { API_BASE_URL } from '../utils/config';
 import './Navbar.css';
 import Navbar from './Navbar';
 import { interpolateData } from '../utils/interpolateData';
@@ -175,7 +176,7 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
   useEffect(() => {
     const fetchZonesActions = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/zones');
+        const response = await fetch(`${API_BASE_URL}/api/zones`);
         if (response.ok) {
           const zones = await response.json();
           setZonesActions(zones);
