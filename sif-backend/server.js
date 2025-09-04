@@ -634,13 +634,17 @@ if (process.env.NODE_ENV === 'production') {
   // Servir les fichiers statiques du build React
   app.use(express.static(path.join(__dirname, '../build')));
   
-  // Pour toutes les routes non-API, servir index.html (React Router)
-  app.get('*', (req, res) => {
-    if (req.path.startsWith('/api/')) {
-      res.status(404).json({ error: 'API route not found' });
-    } else {
+  // Routes spécifiques pour React Router (éviter le wildcard * qui cause path-to-regexp error)
+  const reactRoutes = ['/', '/login', '/admin', '/map', '/guest'];
+  reactRoutes.forEach(route => {
+    app.get(route, (req, res) => {
       res.sendFile(path.join(__dirname, '../build/index.html'));
-    }
+    });
+  });
+  
+  // Gestion des routes API non trouvées
+  app.get('/api/*', (req, res) => {
+    res.status(404).json({ error: 'API route not found' });
   });
 }
 

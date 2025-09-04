@@ -20,15 +20,21 @@ console.log('✅ Configuration des fichiers statiques');
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../build')));
   
-  console.log('✅ Ajout de la route fallback');
-  // Route fallback pour React Router
-  app.get('*', (req, res) => {
-    console.log(`📍 Route fallback appelée pour: ${req.path}`);
-    if (req.path.startsWith('/api/')) {
-      res.status(404).json({ error: 'API route not found' });
-    } else {
-      res.sendFile(path.join(__dirname, '../build/index.html'));
-    }
+  console.log('✅ Ajout de routes spécifiques au lieu de wildcard');
+  // Routes spécifiques au lieu de wildcard
+  app.get('/', (req, res) => {
+    console.log('📍 Route / appelée');
+    res.sendFile(path.join(__dirname, '../build/index.html'));
+  });
+  
+  app.get('/login', (req, res) => {
+    console.log('📍 Route /login appelée');
+    res.sendFile(path.join(__dirname, '../build/index.html'));
+  });
+  
+  app.get('/admin', (req, res) => {
+    console.log('📍 Route /admin appelée');
+    res.sendFile(path.join(__dirname, '../build/index.html'));
   });
 }
 
