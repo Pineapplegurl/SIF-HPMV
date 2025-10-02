@@ -1,6 +1,6 @@
 // Configuration de l'API selon l'environnement
 export const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://your-production-domain.com'
+  ? '' // URL relative pour Netlify Functions
   : 'http://localhost:5000';
 
 // Debug pour voir quelle URL est utilisée
