@@ -21,7 +21,10 @@
     "react-scripts": "^5.0.1",
     "react-zoom-pan-pinch": "^3.7.0",
     "web-vitals": "^4.2.4",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "tailwindcss": "^3.4.3",
+    "postcss": "^8.5.3",
+    "autoprefixer": "^10.4.21"
   },
   "scripts": {
     "start": "cd sif-backend && node server.js",
@@ -55,9 +58,6 @@
     ]
   },
   "devDependencies": {
-    "autoprefixer": "^10.4.21",
-    "netlify-cli": "^17.0.0",
-    "postcss": "^8.5.3",
-    "tailwindcss": "^3.4.3"
+    "netlify-cli": "^17.0.0"
   }
 }
