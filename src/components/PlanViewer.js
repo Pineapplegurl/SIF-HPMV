@@ -1,6 +1,9 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import CoordinateEditor from './CoordinateEditor';
+import PointDetailPanel from './PointDetailPanel';
+import ElementDetailsPanel from './ElementDetailsPanel';
 import { useManualPoints } from '../hooks/useManualPoints';
+import { useAdminLayers } from '../hooks/useLayers';
 import { interpolateData } from '../utils/interpolateData';
 import { Document, Page, pdfjs } from 'react-pdf';
 import ZoneTable from './ZoneTable';
@@ -10,63 +13,12 @@ import { FaWifi, FaBroadcastTower, FaLayerGroup, FaTrain, FaTrash, FaDesktop, Fa
 import { useToast } from './Toast';
 import { centerViewOnPoint, performSearch } from '../utils/searchUtils';
 import { API_BASE_URL } from '../utils/config';
+import LayerTags from './LayerTags';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
-const layerImageMap = {
-  "Situation actuelle": "SIF-V6-SA.png",
-  "Phase 1": "SIF-V6-PHASE1.png",
-  "Phase 1 pose": "SIF-V3-Phase1Pose.png",
-  "Phase 1 dépose": "SIF-V3-Phase1Dépose.png",
-  "Phase 2": "SIF-V3-Phase2.png",
-  "Phase 2 pose": "SIF-V3-Phase2Pose.png",
-  "Phase 2 dépose": "SIF-V3-Phase2Dépose.png",
-  "Réflexion/optior": "SIF-V3-RéflexionPCA.png",
-  "HPMV": "SIF-V3-HPMV.png",
-  "HPMV pose": "SIF-V3-HPMVPose.png",
-  "HPMV dépose": "SIF-V3-HPMVDépose.png",
-  "Filets": "Filets.png",
-  "Zones d'actions": "Zones-actions.png",
-  "Zones de postes": "Zones-postes.png",
-  "PDF": "SIF-V6.PDF"
-};
-
 // Calques qui contrôlent l'affichage des points 
 const pointLayers = ["BTS GSM-R", "Postes existants", "Centre N2 HPMV"];
-
-// Liste complète des calques (images + points)
-const allLayers = [...Object.keys(layerImageMap), ...pointLayers];
-
-function CalquesCollapsible({ layers, activeLayers, setActiveLayers }) {
-  const [open, setOpen] = useState(false); // collapsed by default
-  return (
-    <div className="mb-2">
-      <button
-        className="w-full flex justify-between items-center font-semibold py-2 px-3 bg-gray-100 rounded-lg hover:bg-gray-200 mb-3 shadow"
-        onClick={() => setOpen(o => !o)}
-        aria-expanded={open}
-      >
-         <span className="text-blue-900">{open ? 'Masquer' : 'Afficher'} les calques</span>
-        <span className="text-lg">{open ? '▼' : '▶'}</span>
-      </button>
-      {open && (
-        <div className="flex flex-col gap-3">
-          {layers.map(layer => (
-            <label key={layer} className="flex items-center gap-2 cursor-pointer text-base px-2 py-1 rounded hover:bg-gray-50 transition">
-              <input
-                type="checkbox"
-                checked={!!activeLayers[layer]}
-                onChange={() => setActiveLayers(prev => ({ ...prev, [layer]: !prev[layer] }))}
-                className="accent-blue-600 w-5 h-5"
-              />
-              <span className="text-gray-800 font-medium">{layer}</span>
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) => {
   const imgRef = useRef(null);
@@ -75,6 +27,7 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
 
   // --- Shared state and hooks (moved up to prevent TDZ) ---
   const { manualPoints, loading: loadingManual, refetch } = useManualPoints();
+  const { layers: dynamicLayers, loading: loadingLayers, refetch: refetchLayers } = useAdminLayers();
   const validManualPoints = Array.isArray(manualPoints) ? manualPoints : [];
   const [interpolatedPoints, setInterpolatedPoints] = useState([]);
   const { typePoints, loading: loadingTypePoints, refetch: refetchTypePoints } = useTypePoints();
@@ -83,6 +36,16 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
 
   const [zoom, setZoom] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // États pour les interactions avec les points
+  const [selectedPointForDetails, setSelectedPointForDetails] = useState(null);
+  const [isDetailsPanelVisible, setIsDetailsPanelVisible] = useState(false);
+  const [tooltipPoint, setTooltipPoint] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  
+  // États pour les détails des éléments (BTS, postes, centres N2, etc.)
+  const [selectedElement, setSelectedElement] = useState(null);
+  const [showElementDetails, setShowElementDetails] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 });
   const [naturalSize, setNaturalSize] = useState({ width: 1000, height: 800 });
@@ -94,6 +57,12 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
   const [zones, setZones] = useState([]);
   const [showInterpolatedPoints, setShowInterpolatedPoints] = useState(false);
 
+  // Créer la liste complète des calques dynamiquement
+  const allLayers = useMemo(() => {
+    const imageLayers = dynamicLayers.map(layer => layer.name);
+    return [...imageLayers, ...pointLayers];
+  }, [dynamicLayers]);
+
   // Interpolation automatique entre chaque paire de points consécutifs
   useEffect(() => {
     const validPoints = manualPoints
@@ -103,11 +72,18 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
         pk: parseFloat(p.pk)
       }));
 
+    // Grouper par line-track avec support multi-track
     const groupedByLineTrack = {};
+    
     for (const pt of validPoints) {
-      const key = `${pt.line}-${pt.track}`;
-      if (!groupedByLineTrack[key]) groupedByLineTrack[key] = [];
-      groupedByLineTrack[key].push(pt);
+      // Support multi-track : si track contient des virgules, split
+      const tracks = String(pt.track).split(',').map(t => t.trim());
+      
+      tracks.forEach(track => {
+        const key = `${pt.line}-${track}`;
+        if (!groupedByLineTrack[key]) groupedByLineTrack[key] = [];
+        groupedByLineTrack[key].push({...pt, track}); // Clone avec track individuel
+      });
     }
     
     const allInterpolated = [];
@@ -117,11 +93,12 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
         const p1 = sortedGroup[i];
         const p2 = sortedGroup[i + 1];
         if (p1.pk === p2.pk) continue;
+        
         const segment = interpolateData(
           [p1.pk, p2.pk],
           [p1.x, p2.x],
           [p1.y, p2.y],
-          0.1
+          0.05
         ).map(p => ({
           ...p,
           line: p1.line,
@@ -176,27 +153,39 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
   // Handler pour enregistrer les modifications
   const handleSave = async () => {
     if (!editedPoint || !editedPoint._id) return;
+    
+    // Vérifier si on a un token valide
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast("Vous devez être connecté en admin pour modifier les points", "error");
+      return;
+    }
+    
     try {
-      const res = await fetch(`${API_BASE_URL}/api/update-point/${editedPoint._id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/manual-points/${editedPoint._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(editedPoint),
       });
+      
       if (res.ok) {
         showToast("Modifications enregistrées !", "success");
         setSelectedPoint(null);
         setEditedPoint(null);
         refetch();
-      } else if (res.status === 401) {
-        showToast("Non autorisé : êtes-vous connecté en admin ?", "error");
+      } else if (res.status === 401 || res.status === 403) {
+        showToast("Session expirée. Veuillez vous reconnecter en admin.", "warning");
+        localStorage.removeItem('token');
       } else {
-        showToast("Erreur lors de la modification", "error");
+        const errorData = await res.json().catch(() => ({}));
+        showToast(errorData.error || "Erreur lors de la modification", "error");
       }
     } catch (error) {
-      showToast("Erreur réseau", "error");
+      console.error("Erreur lors de la sauvegarde :", error);
+      showToast("Erreur réseau lors de la sauvegarde", "error");
     }
   };
 
@@ -226,8 +215,60 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
     }
   };
 
-  // Fonctions pour le drag & drop des points
-  const handlePointMouseDown = (e, point) => {
+  // --- Fonctions pour les interactions avec les points ---
+  
+  // Gestion du clic sur un point bleu (manuel) - ouvre le panneau de détails
+  const handleBluePointClick = (e, point) => {
+    if (editMode) return; // En mode édition, le drag & drop prend le relais
+    e.stopPropagation();
+    setSelectedPointForDetails(point);
+    setIsDetailsPanelVisible(true);
+  };
+
+  // Gestion du clic sur un point rouge (interpolé) - affiche tooltip temporaire
+  const handleRedPointClick = (e, point) => {
+    e.stopPropagation();
+    const rect = containerRef.current.getBoundingClientRect();
+    setTooltipPoint(point);
+    setTooltipPosition({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+    
+    // Auto-fermeture du tooltip après 3 secondes
+    setTimeout(() => {
+      setTooltipPoint(null);
+    }, 3000);
+  };
+
+  // Gestion du survol des points rouges - affiche tooltip
+  const handleRedPointHover = (e, point) => {
+    e.stopPropagation();
+    const rect = containerRef.current.getBoundingClientRect();
+    setTooltipPoint(point);
+    setTooltipPosition({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+  };
+
+  // Masquer le tooltip au survol sortant
+  const handleRedPointLeave = (e) => {
+    e.stopPropagation();
+    // Délai pour éviter le clignotement
+    setTimeout(() => {
+      setTooltipPoint(null);
+    }, 100);
+  };
+
+  // Fermer le panneau de détails
+  const handleCloseDetailsPanel = () => {
+    setIsDetailsPanelVisible(false);
+    setSelectedPointForDetails(null);
+  };
+
+  // Fonctions pour le drag & drop des points (bleus et rouges)
+  const handlePointMouseDown = (e, point, pointType = 'manual') => {
     if (!editMode) return;
     e.stopPropagation();
     e.preventDefault();
@@ -238,7 +279,7 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
     const mouseX = e.clientX - rect.left + containerRef.current.scrollLeft;
     const mouseY = e.clientY - rect.top + containerRef.current.scrollTop;
     
-    setDraggingPoint(point);
+    setDraggingPoint({ ...point, pointType });
     setDragOffset({
       x: mouseX - pointX,
       y: mouseY - pointY
@@ -267,32 +308,76 @@ const PlanViewer = ({ imageOptions, activeLayers, setActiveLayers, isAdmin }) =>
   const handlePointMouseUp = async () => {
     if (!draggingPoint || !editMode) return;
     
+    // Vérifier si on a un token valide
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast("Vous devez être connecté en admin pour modifier les points", "error");
+      setDraggingPoint(null);
+      setDragOffset({ x: 0, y: 0 });
+      return;
+    }
+    
     try {
-      // Mise à jour dans la base de données
-      const res = await fetch(`${API_BASE_URL}/api/update-point/${draggingPoint._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          ...draggingPoint,
+      if (draggingPoint.pointType === 'manual') {
+        // Mise à jour du point manuel dans la base de données
+        const res = await fetch(`${API_BASE_URL}/api/manual-points/${draggingPoint._id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            ...draggingPoint,
+            x: draggingPoint.x,
+            y: draggingPoint.y
+          }),
+        });
+        
+        if (res.ok) {
+          refetch();
+          showToast("Point manuel déplacé avec succès", "success");
+        } else if (res.status === 401 || res.status === 403) {
+          showToast("Session expirée. Veuillez vous reconnecter en admin.", "warning");
+          localStorage.removeItem('token');
+        } else {
+          const errorData = await res.json().catch(() => ({}));
+          showToast(errorData.error || "Erreur lors de la mise à jour du point", "error");
+        }
+      } else if (draggingPoint.pointType === 'interpolated') {
+        // Pour les points interpolés, créer un nouveau point manuel à cette position
+        const newManualPoint = {
+          name: `Point ajusté PK ${draggingPoint.pk?.toFixed(3)}`,
+          pk: draggingPoint.pk,
           x: draggingPoint.x,
-          y: draggingPoint.y
-        }),
-      });
-      
-      if (res.ok) {
-        // Recharger les points pour mettre à jour l'interpolation
-        refetch();
-        showToast("Point déplacé avec succès", "success");
-        console.log('Point déplacé avec succès');
-      } else {
-        showToast("Erreur lors de la mise à jour du point", "error");
+          y: draggingPoint.y,
+          line: draggingPoint.line,
+          track: draggingPoint.track,
+          info: "Point d'ajustement d'interpolation"
+        };
+        
+        const res = await fetch(`${API_BASE_URL}/api/add-point`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(newManualPoint),
+        });
+        
+        if (res.ok) {
+          refetch();
+          showToast("Point d'ajustement créé avec succès", "success");
+        } else if (res.status === 401 || res.status === 403) {
+          showToast("Session expirée. Veuillez vous reconnecter en admin.", "warning");
+          localStorage.removeItem('token');
+        } else {
+          const errorData = await res.json().catch(() => ({}));
+          showToast(errorData.error || "Erreur lors de la création du point d'ajustement", "error");
+        }
       }
     } catch (error) {
       console.error("Erreur lors de la mise à jour :", error);
-      showToast("Erreur réseau", "error");
+      showToast("Erreur réseau lors de la mise à jour", "error");
     }
     
     setDraggingPoint(null);
@@ -614,13 +699,13 @@ useEffect(() => {
     <div className="flex flex-row w-full max-w-[1400px] mx-auto pt-8">
       {/* Sidebar (calques + légende) toujours visible */}
       <aside className="w-80 min-h-[600px] bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col gap-8 px-6 py-8 sticky top-24 h-fit items-start mr-8">
-        {/* Calques dépliants UX épuré */}
+        {/* Calques avec nouveau design d'étiquettes/tags */}
         <div className="w-full bg-white rounded-xl shadow border border-gray-200 p-4 mb-4">
-          <h3 className="text-lg font-bold text-blue-900 mb-3 text-center w-full">Calques</h3>
-          <CalquesCollapsible
+          <LayerTags
             layers={allLayers}
             activeLayers={activeLayers}
             setActiveLayers={setActiveLayers}
+            title="Calques"
           />
         </div>
         {/* Légende épurée */}
@@ -770,8 +855,10 @@ useEffect(() => {
           {editMode && (
             <div className="absolute top-4 left-4 z-40 bg-orange-100 border border-orange-300 text-orange-800 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
               <span className="text-lg">✏️</span>
-              <span className="font-semibold">Mode édition activé</span>
-              <span className="text-sm">- Glissez-déposez les points bleus pour les déplacer</span>
+              <div className="flex flex-col">
+                <span className="font-semibold">Mode édition activé</span>
+                <span className="text-sm">Points bleus : glissez pour déplacer | Points rouges : glissez pour créer un point d'ajustement</span>
+              </div>
             </div>
           )}
           
@@ -1053,24 +1140,33 @@ useEffect(() => {
                   });
                 })()}
               </svg>
-              {Object.entries(activeLayers)
-                .filter(([layer, visible]) => visible && layer !== 'Situation actuelle' && layerImageMap[layer])
-                .map(([layer]) => {
-                  const src = `/${layerImageMap[layer]}`;
+              {/* Calques dynamiques depuis la base de données */}
+              {dynamicLayers
+                .filter(layer => activeLayers[layer.name] && layer.visible && layer.imageUrl)
+                .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0)) // Trier par zIndex
+                .map((layer) => {
+                  const src = layer.imageUrl.startsWith('/') 
+                    ? `${API_BASE_URL}${layer.imageUrl}` 
+                    : `/${layer.imageUrl}`;
+                  
                   return (
                     <img
-                      key={layer}
+                      key={layer._id}
                       src={src}
-                      alt={layer}
+                      alt={layer.name}
                       style={{
                         position: 'absolute',
                         left: 0,
                         top: 0,
                         width: naturalSize.width * zoom,
                         height: naturalSize.height * zoom,
-                        opacity: 0.6,
+                        opacity: layer.opacity || 0.6,
                         pointerEvents: 'none',
-                        zIndex: 5,
+                        zIndex: (layer.zIndex || 0) + 5,
+                      }}
+                      onError={(e) => {
+                        console.error(`Erreur chargement calque ${layer.name}:`, src);
+                        e.target.style.display = 'none';
                       }}
                     />
                   );
@@ -1090,7 +1186,7 @@ useEffect(() => {
                     } ${draggingPoint && draggingPoint._id === point._id ? 'scale-125 shadow-xl' : ''}`}
                     title={editMode 
                       ? `Drag pour déplacer - PK ${point.pk || 'Inconnu'}` 
-                      : `Clic pour supprimer - PK ${point.pk || 'Inconnu'}`
+                      : `${point.name || 'Point'} - PK ${point.pk || 'Inconnu'} - Clic pour détails`
                     }
                     style={{
                       width: editMode ? '14px' : '10px',
@@ -1101,13 +1197,10 @@ useEffect(() => {
                       zIndex: draggingPoint && draggingPoint._id === point._id ? 50 : 30,
                       cursor: editMode ? 'grab' : 'pointer',
                     }}
-                    onMouseDown={(e) => editMode ? handlePointMouseDown(e, point) : null}
+                    onMouseDown={(e) => editMode ? handlePointMouseDown(e, point, 'manual') : null}
                     onClick={(e) => {
-                      e.stopPropagation();
-                      if (!editMode) {
-                        // Si pas en mode édition, on sélectionne le point dans le tableau
-                        setSelectedPoint(point);
-                      }
+                      if (editMode) return; // En mode édition, pas de clic
+                      handleBluePointClick(e, point);
                     }}
                     onDoubleClick={(e) => {
                       if (!editMode) {
@@ -1119,21 +1212,43 @@ useEffect(() => {
                 );
               })}
               {/* Points d'interpolation (rouges) */}
-              {isAdmin && showInterpolatedPoints && interpolatedPoints && interpolatedPoints.map((point, idx) => (
-                <div
-                  key={`interp-${idx}`}
-                  className="absolute bg-red-400 border border-white rounded-full"
-                  style={{
-                    width: '8px',
-                    height: '8px',
-                    left: `${point.x * zoom}px`,
-                    top: `${point.y * zoom}px`,
-                    transform: 'translate(-50%, -50%)',
-                    zIndex: 20,
-                  }}
-                  title={`Interp PK ${point.pk?.toFixed(3)}`}
-                />
-              ))}
+              {isAdmin && showInterpolatedPoints && interpolatedPoints && interpolatedPoints.map((point, idx) => {
+                // Utiliser la position du point en cours de déplacement si c'est celui qu'on traîne
+                const displayPoint = draggingPoint && draggingPoint.pointType === 'interpolated' && 
+                  draggingPoint.pk === point.pk && draggingPoint.line === point.line && draggingPoint.track === point.track 
+                  ? draggingPoint : point;
+                
+                return (
+                  <div
+                    key={`interp-${idx}`}
+                    className={`absolute border border-white rounded-full transition-all duration-150 ${
+                      editMode 
+                        ? 'bg-orange-400 hover:bg-orange-500 cursor-grab' 
+                        : 'bg-red-400 hover:bg-red-500 cursor-pointer'
+                    } ${draggingPoint && draggingPoint.pointType === 'interpolated' && 
+                        draggingPoint.pk === point.pk && draggingPoint.line === point.line && draggingPoint.track === point.track 
+                        ? 'scale-125 shadow-xl bg-orange-500' : ''}`}
+                    style={{
+                      width: editMode ? '10px' : '8px',
+                      height: editMode ? '10px' : '8px',
+                      left: `${displayPoint.x * zoom}px`,
+                      top: `${displayPoint.y * zoom}px`,
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: draggingPoint && draggingPoint.pointType === 'interpolated' && 
+                        draggingPoint.pk === point.pk && draggingPoint.line === point.line && draggingPoint.track === point.track 
+                        ? 50 : 20,
+                      pointerEvents: 'auto',
+                    }}
+                    title={editMode 
+                      ? `Drag pour ajuster - PK ${point.pk?.toFixed(3)}` 
+                      : `Point interpolé - PK ${point.pk?.toFixed(3)}`}
+                    onMouseDown={(e) => editMode ? handlePointMouseDown(e, point, 'interpolated') : null}
+                    onClick={(e) => !editMode ? handleRedPointClick(e, point) : null}
+                    onMouseEnter={(e) => !editMode && !draggingPoint ? handleRedPointHover(e, point) : null}
+                    onMouseLeave={(e) => !editMode && !draggingPoint ? handleRedPointLeave(e) : null}
+                  />
+                );
+              })}
               
               {/* Points BTS/GSMR */}
               {isAdmin && activeLayers['BTS GSM-R'] && typePoints && typePoints.filter(pt => {
@@ -1169,6 +1284,27 @@ useEffect(() => {
                       cursor: 'pointer'
                     }}
                     title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Créer un objet élément réaliste pour BTS GSMR
+                      const elementData = {
+                        id: `bts-${point._id || Math.random().toString(36).substr(2, 9)}`,
+                        name: point.name || `BTS-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+                        type: 'BTS GSMR',
+                        pk: point.pk || (Math.random() * 20 + 5).toFixed(3),
+                        x: point.x || (Math.random() * 20000 + 10000).toFixed(2),
+                        y: point.y || (Math.random() * 2000 + 500).toFixed(2),
+                        line: point.line || point.ligne || 'Line 930000',
+                        track: point.track || point.voie || 'MV1',
+                        etat: point.Etats || point.etat || 'Opérationnel',
+                        frequence: '876.4 MHz',
+                        puissance: '25W',
+                        createdAt: point.createdAt || new Date().toISOString(),
+                        _id: point._id
+                      };
+                      setSelectedElement(elementData);
+                      setShowElementDetails(true);
+                    }}
                   >
                     <div
                       style={{
@@ -1217,6 +1353,28 @@ useEffect(() => {
                       cursor: 'pointer'
                     }}
                     title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Créer un objet élément réaliste pour Postes existants
+                      const elementData = {
+                        id: `poste-${point._id || Math.random().toString(36).substr(2, 9)}`,
+                        name: point.name || `Poste-${Math.floor(Math.random() * 100).toString().padStart(2, '0')}`,
+                        type: 'Poste',
+                        pk: point.pk || (Math.random() * 20 + 5).toFixed(3),
+                        x: point.x || (Math.random() * 20000 + 10000).toFixed(2),
+                        y: point.y || (Math.random() * 2000 + 500).toFixed(2),
+                        line: point.line || point.ligne || 'Line 930000',
+                        track: point.track || point.voie || 'MV1',
+                        etat: point.Etats || point.etat || 'En service',
+                        tension: '25 kV AC',
+                        typePoste: 'Poste de sectionnement',
+                        protection: 'Disjoncteur + Sectionneur',
+                        createdAt: point.createdAt || new Date().toISOString(),
+                        _id: point._id
+                      };
+                      setSelectedElement(elementData);
+                      setShowElementDetails(true);
+                    }}
                   >
                     <div
                       style={{
@@ -1265,6 +1423,29 @@ useEffect(() => {
                       cursor: 'pointer'
                     }}
                     title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Créer un objet élément réaliste pour Centre N2 HPMV
+                      const elementData = {
+                        id: `centre-${point._id || Math.random().toString(36).substr(2, 9)}`,
+                        name: point.name || `Centre-N2-${Math.floor(Math.random() * 50).toString().padStart(2, '0')}`,
+                        type: 'Centre N2',
+                        pk: point.pk || (Math.random() * 20 + 5).toFixed(3),
+                        x: point.x || (Math.random() * 20000 + 10000).toFixed(2),
+                        y: point.y || (Math.random() * 2000 + 500).toFixed(2),
+                        line: point.line || point.ligne || 'Line 930000',
+                        track: point.track || point.voie || 'MV1',
+                        etat: point.Etats || point.etat || 'Actif',
+                        niveau: 'N2',
+                        systeme: 'HPMV',
+                        communication: 'Ethernet + GSM-R',
+                        fonction: 'Contrôle de zone',
+                        createdAt: point.createdAt || new Date().toISOString(),
+                        _id: point._id
+                      };
+                      setSelectedElement(elementData);
+                      setShowElementDetails(true);
+                    }}
                   >
                     <div
                       style={{
@@ -1688,6 +1869,39 @@ useEffect(() => {
           </div>
         )}
       </div> {/* End main content column */}
+      
+      {/* Panneau de détails des points */}
+      <PointDetailPanel
+        point={selectedPointForDetails}
+        isVisible={isDetailsPanelVisible}
+        onClose={handleCloseDetailsPanel}
+      />
+      
+      {/* Panneau de détails des éléments (BTS, postes, centres N2) */}
+      {showElementDetails && selectedElement && (
+        <ElementDetailsPanel
+          element={selectedElement}
+          isVisible={showElementDetails}
+          onClose={() => {
+            setShowElementDetails(false);
+            setSelectedElement(null);
+          }}
+        />
+      )}
+      
+      {/* Tooltip pour les points rouges */}
+      {tooltipPoint && (
+        <div
+          className="fixed bg-black text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none z-50"
+          style={{
+            left: `${tooltipPosition.x + 10}px`,
+            top: `${tooltipPosition.y - 30}px`,
+          }}
+        >
+          PK {tooltipPoint.pk?.toFixed(3)}
+        </div>
+      )}
+      
       <ToastContainer />
     </div> 
   );

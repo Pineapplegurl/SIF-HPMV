@@ -7,7 +7,7 @@ export function useManualPoints() {
 
   const fetchManualPoints = async () => {
     try {
-      const res = await fetch("${API_BASE_URL}/api/manual-points");
+      const res = await fetch(`${API_BASE_URL}/api/manual-points`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setManualPoints(data);

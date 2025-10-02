@@ -5,6 +5,7 @@ import PlanViewer from './components/PlanViewer';
 import CoordinateSystem from './CoordinateSystem';
 import SIFTables from './components/SIFTables';
 import GuestMapPage from './components/GuestMapPage';
+import AdminLayersPage from './components/AdminLayersPage';
 import './App.css';
 import './index.css';
 
@@ -87,6 +88,16 @@ function App() {
         <section className="section sif-tables-section">
           {isAdmin ? (
             <SIFTables isAdmin={isAdmin} />
+          ) : (
+            <div className="flex items-center justify-center h-full text-xl text-red-600 font-bold">Vous n'avez pas accès à cette page.</div>
+          )}
+        </section>
+      )}
+
+      {activePage === 'admin-layers' && (
+        <section className="section admin-layers-section">
+          {isAdmin ? (
+            <AdminLayersPage />
           ) : (
             <div className="flex items-center justify-center h-full text-xl text-red-600 font-bold">Vous n'avez pas accès à cette page.</div>
           )}

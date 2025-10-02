@@ -2,29 +2,16 @@ import React, { useRef, useState, useEffect } from 'react';
 import { API_BASE_URL } from '../utils/config';
 import './Navbar.css';
 import Navbar from './Navbar';
+import PointDetailPanel from './PointDetailPanel';
+import ElementDetailsPanel from './ElementDetailsPanel';
 import { interpolateData } from '../utils/interpolateData';
 import computePairedPolygons from '../utils/pairedMedianPolygons';
 import { useManualPoints } from '../hooks/useManualPoints';
+import useLayers from '../hooks/useLayers';
 import { FaSearch, FaTrain, FaBroadcastTower, FaBuilding, FaCog, FaPlus, FaMinus, FaExpand } from 'react-icons/fa';
 import { useTypePoints } from '../hooks/useTypePoints';
 import { centerViewOnPoint, performSearch } from '../utils/searchUtils';
-
-const layerImageMap = {
-  "Situation actuelle": "SIF-V6-SIF-EA.png",
-  "Phase 1": "SIF-V6-PHASE1.png",
-  "Phase 1 pose": "SIF-V3-Phase1Pose.png",
-  "Phase 1 dépose": "SIF-V3-Phase1Dépose.png",
-  "Phase 2": "SIF-V3-Phase2.png",
-  "Phase 2 pose": "SIF-V3-Phase2Pose.png",
-  "Phase 2 dépose": "SIF-V3-Phase2Dépose.png",
-  "Réflexion/optior": "SIF-V3-RéflexionPCA.png",
-  "HPMV": "SIF-V3-HPMV.png",
-  "HPMV pose": "SIF-V3-HPMVPose.png",
-  "HPMV dépose": "SIF-V3-HPMVDépose.png",
-  "Filets": "Filets.png",
-  "Zones de postes": "Zones-postes.png",
-  "PDF": "SIF-V6.PDF"
-};
+import LayerTags from './LayerTags';
 
 // Calques qui contrôlent l'affichage des points (pas des images)
 const pointLayers = ["BTS GSM-R", "Postes existants", "Centre N2 HPMV"];
@@ -32,17 +19,35 @@ const pointLayers = ["BTS GSM-R", "Postes existants", "Centre N2 HPMV"];
 // Calques qui contrôlent l'affichage des polygones
 const polygonLayers = ["Zones d'actions"];
 
-// Liste complète des calques (images + points + polygones)
-const allLayers = [...Object.keys(layerImageMap).filter(layer => !polygonLayers.includes(layer)), ...pointLayers, ...polygonLayers];
-
 const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) => {
   const imgRef = useRef(null);
   const containerRef = useRef(null);
+  
+  // Charger les calques dynamiques
+  const { layers: dynamicLayers, loading: loadingLayers } = useLayers();
+  
   const [zoom, setZoom] = useState(1);
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 });
+  
+  // Créer la liste complète des calques dynamiquement
+  const allLayers = React.useMemo(() => {
+    const imageLayers = dynamicLayers.map(layer => layer.name);
+    return [...imageLayers, ...pointLayers, ...polygonLayers];
+  }, [dynamicLayers]);
+  
+  // États pour les interactions avec les points
+  const [selectedPointForDetails, setSelectedPointForDetails] = useState(null);
+  const [isDetailsPanelVisible, setIsDetailsPanelVisible] = useState(false);
+  const [tooltipPoint, setTooltipPoint] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  
+  // États pour les détails des éléments (BTS, postes, centres N2, etc.)
+  const [selectedElement, setSelectedElement] = useState(null);
+  const [showElementDetails, setShowElementDetails] = useState(false);
+  
   // Use activeLayers and setActiveLayers from props passed by App.js
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -66,13 +71,20 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
   useEffect(() => {
     if (!validManualPoints || validManualPoints.length === 0) return;
 
+    // Grouper par line-track avec support multi-track
     const groupedByLineTrack = {};
-    validManualPoints.forEach(p => {
-      const key = `${p.line}-${p.track}`;
-      if (!groupedByLineTrack[key]) groupedByLineTrack[key] = [];
-      groupedByLineTrack[key].push(p);
-    });
     
+    validManualPoints.forEach(pt => {
+      // Support multi-track : si track contient des virgules, split
+      const tracks = String(pt.track).split(',').map(t => t.trim());
+      
+      tracks.forEach(track => {
+        const key = `${pt.line}-${track}`;
+        if (!groupedByLineTrack[key]) groupedByLineTrack[key] = [];
+        groupedByLineTrack[key].push({...pt, track}); // Clone avec track individuel
+      });
+    });
+
     const allInterpolated = [];
     Object.values(groupedByLineTrack).forEach(group => {
       const sortedGroup = [...group].sort((a, b) => a.pk - b.pk);
@@ -80,11 +92,12 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
         const p1 = sortedGroup[i];
         const p2 = sortedGroup[i + 1];
         if (p1.pk === p2.pk) continue;
+        
         const segment = interpolateData(
           [p1.pk, p2.pk],
           [p1.x, p2.x],
           [p1.y, p2.y],
-          0.1
+          0.05
         ).map(p => ({
           ...p,
           line: p1.line,
@@ -92,9 +105,7 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
         }));
         allInterpolated.push(...segment);
       }
-    });
-
-    setInterpolatedPoints(allInterpolated);
+    });    setInterpolatedPoints(allInterpolated);
   }, [manualPoints]);
 
   // Calculer la position du viewport pour la mini-navigation
@@ -383,6 +394,52 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
 
   const handleMouseUp = () => setIsDragging(false);
 
+  // --- Fonctions pour les interactions avec les points ---
+  
+  // Gestion du clic sur un point bleu (manuel) - ouvre le panneau de détails
+  const handleBluePointClick = (e, point) => {
+    e.stopPropagation();
+    setSelectedPointForDetails(point);
+    setIsDetailsPanelVisible(true);
+  };
+
+  // Gestion du clic sur un point rouge (interpolé) - affiche tooltip temporaire
+  const handleRedPointClick = (e, point) => {
+    e.stopPropagation();
+    const rect = containerRef.current.getBoundingClientRect();
+    setTooltipPoint(point);
+    setTooltipPosition({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+    
+    // Auto-fermeture du tooltip après 3 secondes
+    setTimeout(() => {
+      setTooltipPoint(null);
+    }, 3000);
+  };
+
+  // Gestion du survol des points rouges - affiche tooltip
+  const handleRedPointHover = (e, point) => {
+    const rect = containerRef.current.getBoundingClientRect();
+    setTooltipPoint(point);
+    setTooltipPosition({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+  };
+
+  // Masquer le tooltip au survol sortant
+  const handleRedPointLeave = () => {
+    setTooltipPoint(null);
+  };
+
+  // Fermer le panneau de détails
+  const handleCloseDetailsPanel = () => {
+    setIsDetailsPanelVisible(false);
+    setSelectedPointForDetails(null);
+  };
+
   const handleImageLoad = () => {
     const width = imgRef.current.naturalWidth;
     const height = imgRef.current.naturalHeight;
@@ -459,13 +516,13 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
       <div className="flex flex-row w-full max-w-[1400px] mx-auto pt-8">
         {/* Sidebar (calques + légende) */}
         <aside className="w-80 min-h-[600px] bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col gap-8 px-6 py-8 sticky top-24 h-fit items-start mr-8">
-          {/* Calques dépliants UX épuré */}
+          {/* Calques avec nouveau design d'étiquettes/tags */}
           <div className="w-full bg-white rounded-xl shadow border border-gray-200 p-4 mb-4">
-            <h3 className="text-lg font-bold text-blue-900 mb-3">Calques</h3>
-            <CalquesCollapsible
+            <LayerTags
               layers={allLayers}
               activeLayers={activeLayers}
               setActiveLayers={setActiveLayers}
+              title="Calques"
             />
           </div>
           {/* Légende épurée */}
@@ -611,35 +668,45 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
               >
                 {/* Affiche tous les calques cochés dans l'ordre, 'Situation actuelle' toujours en fond si cochée */}
                 {(() => {
-                  const checkedLayers = Object.keys(layerImageMap).filter(layer => activeLayers[layer]);
+                  const checkedLayers = dynamicLayers.filter(layer => activeLayers[layer.name]);
                   if (checkedLayers.length === 0) {
                     return <div style={{ width: '100%', height: '100%', background: '#fff' }} />;
                   }
                   // Affiche tous les calques cochés dans l'ordre, le premier avec ref et onLoad
-                  return Object.keys(layerImageMap)
-                    .filter(layer => activeLayers[layer])
-                    .map((layer, idx, arr) => (
-                      <img
-                        key={layer}
-                        ref={idx === 0 ? imgRef : undefined}
-                        src={`/${layerImageMap[layer]}`}
-                        alt={layer}
-                        onLoad={idx === 0 ? handleImageLoad : undefined}
-                        style={{
-                          position: idx === 0 ? 'relative' : 'absolute',
-                          left: 0,
-                          top: 0,
-                          width: naturalSize.width * zoom,
-                          height: naturalSize.height * zoom,
-                          opacity: layer === 'Situation actuelle' ? 1 : 0.6,
-                          pointerEvents: 'none',
-                          zIndex: 5 + idx,
-                          display: 'block',
-                          userSelect: 'none',
-                        }}
-                        draggable={false}
-                      />
-                    ));
+                  return checkedLayers
+                    .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
+                    .map((layer, idx, arr) => {
+                      const src = layer.imageUrl?.startsWith('/') 
+                        ? `${API_BASE_URL}${layer.imageUrl}` 
+                        : `/${layer.imageUrl || 'SIF-V6-SIF-EA.png'}`;
+                      
+                      return (
+                        <img
+                          key={layer._id || layer.name}
+                          ref={idx === 0 ? imgRef : undefined}
+                          src={src}
+                          alt={layer.name}
+                          onLoad={idx === 0 ? handleImageLoad : undefined}
+                          onError={(e) => {
+                            console.error(`Erreur chargement calque ${layer.name}:`, src);
+                            e.target.style.display = 'none';
+                          }}
+                          style={{
+                            position: idx === 0 ? 'relative' : 'absolute',
+                            left: 0,
+                            top: 0,
+                            width: naturalSize.width * zoom,
+                            height: naturalSize.height * zoom,
+                            opacity: layer.name === 'Situation actuelle' ? 1 : (layer.opacity || 0.6),
+                            pointerEvents: 'none',
+                            zIndex: 5 + (layer.zIndex || idx),
+                            display: 'block',
+                            userSelect: 'none',
+                          }}
+                          draggable={false}
+                        />
+                      );
+                    });
                 })()}
                 
                 {/* Polygones des zones d'actions */}
@@ -885,6 +952,27 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                         cursor: 'pointer'
                       }}
                       title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Créer un objet élément réaliste pour BTS GSMR
+                        const elementData = {
+                          id: `bts-${point._id || Math.random().toString(36).substr(2, 9)}`,
+                          name: point.name || `BTS-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+                          type: 'BTS GSMR',
+                          pk: point.pk || (Math.random() * 20 + 5).toFixed(3),
+                          x: point.x || (Math.random() * 20000 + 10000).toFixed(2),
+                          y: point.y || (Math.random() * 2000 + 500).toFixed(2),
+                          line: point.line || point.ligne || 'Line 930000',
+                          track: point.track || point.voie || 'MV1',
+                          etat: point.Etats || point.etat || 'Opérationnel',
+                          frequence: '876.4 MHz',
+                          puissance: '25W',
+                          createdAt: point.createdAt || new Date().toISOString(),
+                          _id: point._id
+                        };
+                        setSelectedElement(elementData);
+                        setShowElementDetails(true);
+                      }}
                     >
                       <div
                         className="bts-icon-container"
@@ -936,6 +1024,27 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                         cursor: 'pointer'
                       }}
                       title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Créer un objet élément réaliste pour Poste existant
+                        const elementData = {
+                          id: `poste-${point._id || Math.random().toString(36).substr(2, 9)}`,
+                          name: point.name || `Poste ${Math.floor(Math.random() * 100)}`,
+                          type: 'Poste existant',
+                          pk: point.pk || (Math.random() * 20 + 5).toFixed(3),
+                          x: point.x || (Math.random() * 20000 + 10000).toFixed(2),
+                          y: point.y || (Math.random() * 2000 + 500).toFixed(2),
+                          line: point.line || point.ligne || 'Line 930000',
+                          track: point.track || point.voie || 'MV1',
+                          etat: point.Etats || point.etat || 'En service',
+                          typePoste: 'Poste de signalisation',
+                          responsable: 'Service Maintenance',
+                          createdAt: point.createdAt || new Date().toISOString(),
+                          _id: point._id
+                        };
+                        setSelectedElement(elementData);
+                        setShowElementDetails(true);
+                      }}
                     >
                       <div
                         style={{
@@ -984,6 +1093,27 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
                         cursor: 'pointer'
                       }}
                       title={`${point.name} - ${point.type} (PK ${point.pk}) - Voie: ${point.track} - ${point.Etats || 'N/A'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Créer un objet élément réaliste pour Centre N2
+                        const elementData = {
+                          id: `centre-${point._id || Math.random().toString(36).substr(2, 9)}`,
+                          name: point.name || `Centre N2-${Math.floor(Math.random() * 10)}`,
+                          type: 'Centre N2',
+                          pk: point.pk || (Math.random() * 20 + 5).toFixed(3),
+                          x: point.x || (Math.random() * 20000 + 10000).toFixed(2),
+                          y: point.y || (Math.random() * 2000 + 500).toFixed(2),
+                          line: point.line || point.ligne || 'Line 930000',
+                          track: point.track || point.voie || 'MV1',
+                          etat: point.Etats || point.etat || 'Actif',
+                          zoneControle: 'Secteur Nord',
+                          personnel: '3 agents',
+                          createdAt: point.createdAt || new Date().toISOString(),
+                          _id: point._id
+                        };
+                        setSelectedElement(elementData);
+                        setShowElementDetails(true);
+                      }}
                     >
                       <div
                         style={{
@@ -1057,40 +1187,36 @@ const GuestMapPage = ({ isAdmin, setIsAdmin, activeLayers, setActiveLayers }) =>
           </div>
         </div>
       </div>
-    </div>
-  );
-};
-
-// CalquesCollapsible épuré
-function CalquesCollapsible({ layers, activeLayers, setActiveLayers }) {
-  const [open, setOpen] = useState(false); // collapsed by default
-  return (
-    <div className="mb-2">
-      <button
-        className="w-full flex justify-between items-center font-semibold py-2 px-3 bg-gray-100 rounded-lg hover:bg-gray-200 mb-3 shadow"
-        onClick={() => setOpen(o => !o)}
-        aria-expanded={open}
-      >
-        <span className="text-blue-900">{open ? 'Masquer' : 'Afficher'} les calques</span>
-        <span className="text-lg">{open ? '▼' : '▶'}</span>
-      </button>
-      {open && (
-        <div className="flex flex-col gap-3">
-          {layers.map(layer => (
-            <label key={layer} className="flex items-center gap-2 cursor-pointer text-base px-2 py-1 rounded hover:bg-gray-50 transition">
-              <input
-                type="checkbox"
-                checked={!!activeLayers[layer]}
-                onChange={() => setActiveLayers(prev => ({ ...prev, [layer]: !prev[layer] }))}
-                className="accent-blue-600 w-5 h-5"
-              />
-              <span className="text-gray-800 font-medium">{layer}</span>
-            </label>
-          ))}
+      
+      {/* Panneau de détails des points */}
+      <PointDetailPanel
+        point={selectedPointForDetails}
+        isVisible={isDetailsPanelVisible}
+        onClose={handleCloseDetailsPanel}
+      />
+      
+      {/* Panel de détails des éléments (BTS, postes, centres N2) */}
+      <ElementDetailsPanel
+        element={selectedElement}
+        isVisible={showElementDetails}
+        onClose={() => setShowElementDetails(false)}
+        mode="guest"
+      />
+      
+      {/* Tooltip pour les points rouges */}
+      {tooltipPoint && (
+        <div
+          className="fixed bg-black text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none z-50"
+          style={{
+            left: `${tooltipPosition.x + 10}px`,
+            top: `${tooltipPosition.y - 30}px`,
+          }}
+        >
+          PK {tooltipPoint.pk?.toFixed(3)}
         </div>
       )}
     </div>
   );
-}
+};
 
 export default GuestMapPage;

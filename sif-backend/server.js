@@ -3,6 +3,9 @@ const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const sharp = require('sharp');
 require('dotenv').config();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -11,6 +14,23 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 const SECRET_KEY = process.env.JWT_SECRET || 'votre_cle_secrete';
+
+// Variables MongoDB globales
+const uri = process.env.MONGODB_URI;
+const client = new MongoClient(uri);
+let db;
+
+// Fonction de connexion MongoDB unique
+async function connectToMongoDB() {
+  try {
+    await client.connect();
+    db = client.db('SIF');
+    console.log('✅ Connexion MongoDB établie');
+  } catch (error) {
+    console.error('❌ Erreur connexion MongoDB:', error);
+    process.exit(1);
+  }
+}
 
 // Configuration CORS adaptée à l'environnement
 if (process.env.NODE_ENV === 'production') {
@@ -25,6 +45,37 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 app.use(express.json()); // Pour parser le JSON dans les requêtes POST
+
+// Configuration pour servir les fichiers statiques (images uploadées)
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
+
+// Configuration Multer pour l'upload de fichiers
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `layer-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Format de fichier non autorisé. Utilisez PNG, JPG ou WebP.'));
+    }
+  }
+});
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -62,9 +113,6 @@ app.post('/api/login', async (req, res) => {
   res.json({ token });
 });
 
-const uri = process.env.MONGODB_URI;
-const client = new MongoClient(uri);
-
 app.get('/api/points', async (req, res) => {
     // Vérification de la présence du paramètre "name" dans la requête
     // Si le paramètre est manquant, renvoyer une erreur 400
@@ -75,12 +123,8 @@ app.get('/api/points', async (req, res) => {
   }
 
   try {
-    await client.connect();
-    const db = client.db('SIF'); // Base de données
-    const collection = db.collection('PK'); // Collection
-
-    const results = await collection
-      .find({ "Points remarquables ": { $regex: nameQuery, $options: 'i' } }) // RECHERCHE partielle insensible à la casse
+    const results = await db.collection('PK')
+      .find({ "Points remarquables ": { $regex: nameQuery, $options: 'i' } })
       .toArray();
 
     res.json(results);
@@ -92,9 +136,7 @@ app.get('/api/points', async (req, res) => {
 
 app.get('/api/all-points', async (req, res) => {
     try {
-      await client.connect();
-      const db = client.db('SIF'); 
-      const results = await db.collection('PK').find({}).toArray(); // aucune condition
+      const results = await db.collection('PK').find({}).toArray();
       res.json(results);
     } catch (error) {
       console.error('Erreur lors de la récupération de tous les points :', error);
@@ -104,9 +146,6 @@ app.get('/api/all-points', async (req, res) => {
 
   app.get('/api/pkdata', async (req, res) => {
     try {
-      await client.connect();
-      const db = client.db('SIF');
-      // On fusionne les points PK et AddedPoints pour l'interpolation frontend
       const pkPoints = await db.collection('PK').find().toArray();
       const addedPoints = await db.collection('AddedPoints').find().toArray();
       const allPoints = [...pkPoints, ...addedPoints];
@@ -129,8 +168,6 @@ app.get('/api/all-points', async (req, res) => {
   let finalY = y;
 
   if ((x === undefined || y === undefined) && pk !== undefined && track && line) {
-    await client.connect();
-    const db = client.db('SIF');
     const points = await db.collection('PK')
       .find({ track: track, line: line, pk: { $exists: true }, x: { $exists: true }, y: { $exists: true } })
       .sort({ pk: 1 })
@@ -163,8 +200,6 @@ app.get('/api/all-points', async (req, res) => {
   }
 
   try {
-    await client.connect();
-    const db = client.db('SIF');
     const result = await db.collection('AddedPoints').insertOne({
       type, name, line, track, pk,
       xSif, ySif, xReal, yReal, infos,
@@ -194,8 +229,6 @@ app.post('/api/add-type-point', authenticateToken, async (req, res) => {
   }
 
   try {
-    await client.connect();
-    const db = client.db('SIF');
     const toInsert = {
       type,
       name,
@@ -232,11 +265,24 @@ app.post('/api/add-type-point', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/manual-points', async (req, res) => {
+  console.log('📍 GET /api/manual-points appelé');
   try {
-    await client.connect();
-    const db = client.db('SIF');
     const points = await db.collection('AddedPoints').find({}).toArray();
-    res.json(points);
+    
+    // Nettoie les données
+    const cleanedPoints = points
+      .filter(p => p.x && p.y && p.pk)
+      .map(point => ({
+        ...point,
+        pk: typeof point.pk === 'string' ? 
+            parseFloat(point.pk.replace(',', '.')) : 
+            point.pk,
+        x: point.x || point.xSif || 0,
+        y: point.y || point.ySif || 0
+      }));
+    
+    console.log('📍 Points manuels récupérés:', cleanedPoints.length);
+    res.json(cleanedPoints);
   } catch (err) {
     console.error('Erreur fetch points manuels :', err);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -244,11 +290,24 @@ app.get('/api/manual-points', async (req, res) => {
 });
 
 app.get('/api/type-points', async (req, res) => {
+  console.log('📡 GET /api/type-points appelé');
   try {
-    await client.connect();
-    const db = client.db('SIF');
     const points = await db.collection('TypePoints').find({}).toArray();
-    res.json(points);
+    
+    // Nettoie les données
+    const cleanedPoints = points
+      .filter(p => p.x && p.y && p.pk)
+      .map(point => ({
+        ...point,
+        pk: typeof point.pk === 'string' ? 
+            parseFloat(point.pk.replace(',', '.')) : 
+            point.pk,
+        x: point.x || point.xSif || 0,
+        y: point.y || point.ySif || 0
+      }));
+    
+    console.log('📡 Type points récupérés:', cleanedPoints.length);
+    res.json(cleanedPoints);
   } catch (err) {
     console.error('Erreur récupération TypePoints :', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -318,10 +377,10 @@ app.post('/api/add-zone',authenticateToken, async (req, res) => {
 });
 
 app.get('/api/zones', async (req, res) => {
+  console.log('🗺️ GET /api/zones appelé');
   try {
-    await client.connect();
-    const db = client.db('SIF');
     const zones = await db.collection('Zones').find({}).toArray();
+    console.log('🗺️ Zones récupérées:', zones.length);
     res.json(zones);
   } catch (error) {
     console.error('Erreur fetch zones :', error);
@@ -343,8 +402,6 @@ app.post('/api/interpolated-position', async (req, res) => {
   line = norm(line);
 
   try {
-    await client.connect();
-    const db = client.db('SIF');
     // Use $expr and $regexMatch for case-insensitive, trimmed match
     const pkPoints = await db.collection('PK').find({
       $expr: {
@@ -411,8 +468,6 @@ app.post('/api/interpolations/import', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'Données invalides.' });
   }
   try {
-    await client.connect();
-    const db = client.db('SIF');
     await db.collection('Interpolations').deleteMany({});
     if (data.length > 0) {
       await db.collection('Interpolations').insertMany(data);
@@ -431,8 +486,6 @@ app.post('/api/type-points/import', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'Données invalides.' });
   }
   try {
-    await client.connect();
-    const db = client.db('SIF');
     await db.collection('TypePoints').deleteMany({});
     if (data.length > 0) {
       await db.collection('TypePoints').insertMany(data);
@@ -451,8 +504,6 @@ app.post('/api/zones/import', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'Données invalides.' });
   }
   try {
-    await client.connect();
-    const db = client.db('SIF');
     await db.collection('Zones').deleteMany({});
     if (data.length > 0) {
       await db.collection('Zones').insertMany(data);
@@ -471,8 +522,6 @@ app.delete('/api/delete-type-point/:id', authenticateToken, async (req, res) => 
   const pointId = req.params.id;
 
   try {
-    await client.connect();
-    const db = client.db('SIF');
     const result = await db.collection('TypePoints').deleteOne({ _id: new ObjectId(pointId) });
 
     if (result.deletedCount === 1) {
@@ -492,8 +541,6 @@ app.post('/api/save-type-points', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'Aucun point à sauvegarder.' });
   }
   try {
-    await client.connect();
-    const db = client.db('SIF');
     await db.collection('SavedTypePoints').deleteMany({});
     await db.collection('SavedTypePoints').insertMany(points);
     res.status(201).json({ message: 'Points BTS/GSMR sauvegardés !' });
@@ -505,8 +552,6 @@ app.post('/api/save-type-points', authenticateToken, async (req, res) => {
 
 app.get('/api/saved-type-points', async (req, res) => {
   try {
-    await client.connect();
-    const db = client.db('SIF');
     const points = await db.collection('SavedTypePoints').find({}).toArray();
     res.json(points);
   } catch (err) {
@@ -517,8 +562,6 @@ app.get('/api/saved-type-points', async (req, res) => {
 
 app.delete('/api/delete-saved-type-point/:id', async (req, res) => {
   try {
-    await client.connect();
-    const db = client.db('SIF');
     const { id } = req.params;
     const result = await db.collection('SavedTypePoints').deleteOne({ _id: new ObjectId(id) });
     if (result.deletedCount === 1) {
@@ -535,8 +578,6 @@ app.delete('/api/delete-saved-type-point/:id', async (req, res) => {
 app.delete('/api/delete-zone/:id', authenticateToken, async (req, res) => {
   const zoneId = req.params.id;
   try {
-    await client.connect();
-    const db = client.db('SIF');
     const result = await db.collection('Zones').deleteOne({ _id: new ObjectId(zoneId) });
     if (result.deletedCount === 1) {
       res.status(200).json({ message: 'Zone supprimée avec succès.' });
@@ -554,9 +595,6 @@ app.put('/api/type-points/:id', authenticateToken, async (req, res) => {
   const updatedPoint = req.body;
   
   try {
-    await client.connect();
-    const db = client.db('SIF');
-    
     const result = await db.collection('TypePoints').updateOne(
       { _id: new ObjectId(id) },
       { $set: updatedPoint }
@@ -570,8 +608,6 @@ app.put('/api/type-points/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Erreur lors de la mise à jour du point BTS/GSMR:', error);
     res.status(500).json({ message: 'Erreur serveur.' });
-  } finally {
-    await client.close();
   }
 });
 
@@ -580,12 +616,12 @@ app.put('/api/manual-points/:id', authenticateToken, async (req, res) => {
   const updatedPoint = req.body;
   
   try {
-    await client.connect();
-    const db = client.db('SIF');
+    // Supprimer _id du body s'il existe pour éviter l'erreur immutable
+    const { _id, ...pointWithoutId } = updatedPoint;
     
     const result = await db.collection('AddedPoints').updateOne(
       { _id: new ObjectId(id) },
-      { $set: updatedPoint }
+      { $set: pointWithoutId }
     );
     
     if (result.matchedCount === 0) {
@@ -596,8 +632,6 @@ app.put('/api/manual-points/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Erreur lors de la mise à jour du point d\'interpolation:', error);
     res.status(500).json({ message: 'Erreur serveur.' });
-  } finally {
-    await client.close();
   }
 });
 
@@ -606,9 +640,6 @@ app.put('/api/zones/:id', authenticateToken, async (req, res) => {
   const updatedZone = req.body;
   
   try {
-    await client.connect();
-    const db = client.db('SIF');
-    
     const result = await db.collection('Zones').updateOne(
       { _id: new ObjectId(id) },
       { $set: updatedZone }
@@ -622,8 +653,6 @@ app.put('/api/zones/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Erreur lors de la mise à jour de la zone:', error);
     res.status(500).json({ message: 'Erreur serveur.' });
-  } finally {
-    await client.close();
   }
 });
 
@@ -648,6 +677,419 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`✅ Serveur backend démarré sur http://localhost:${PORT}`);
+// ============================================
+// GESTION DES CALQUES SIF
+// ============================================
+
+// Récupérer tous les calques
+app.get('/api/layers', authenticateToken, async (req, res) => {
+  try {
+    const layers = await db.collection('Layers')
+      .find({})
+      .sort({ zIndex: 1, name: 1 })
+      .toArray();
+    res.json(layers);
+  } catch (error) {
+    console.error('Erreur récupération calques:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
+
+// Créer un nouveau calque
+app.post('/api/layers', authenticateToken, async (req, res) => {
+  try {
+    const { name, description, opacity, visible, zIndex } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Le nom du calque est requis' });
+    }
+
+    const newLayer = {
+      name,
+      description: description || '',
+      opacity: opacity !== undefined ? parseFloat(opacity) : 1,
+      visible: visible !== undefined ? visible : true,
+      zIndex: parseInt(zIndex) || 0,
+      imageUrl: null,
+      dimensions: null,
+      fileSize: null,
+      createdAt: new Date(),
+      lastModified: new Date(),
+      versions: []
+    };
+
+    const result = await db.collection('Layers').insertOne(newLayer);
+    const layer = await db.collection('Layers').findOne({ _id: result.insertedId });
+    
+    res.json(layer);
+  } catch (error) {
+    console.error('Erreur création calque:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Mettre à jour un calque
+app.put('/api/layers/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = { ...req.body };
+    delete updateData._id; // Ne pas modifier l'ID
+    
+    updateData.lastModified = new Date();
+    if (updateData.opacity !== undefined) {
+      updateData.opacity = parseFloat(updateData.opacity);
+    }
+    if (updateData.zIndex !== undefined) {
+      updateData.zIndex = parseInt(updateData.zIndex);
+    }
+
+    const result = await db.collection('Layers').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'Calque non trouvé' });
+    }
+
+    const layer = await db.collection('Layers').findOne({ _id: new ObjectId(id) });
+    res.json(layer);
+  } catch (error) {
+    console.error('Erreur mise à jour calque:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Supprimer un calque
+app.delete('/api/layers/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Récupérer le calque pour supprimer ses fichiers
+    const layer = await db.collection('Layers').findOne({ _id: new ObjectId(id) });
+    if (!layer) {
+      return res.status(404).json({ error: 'Calque non trouvé' });
+    }
+
+    // Supprimer le fichier image principal
+    if (layer.imageUrl) {
+      const filePath = path.join(uploadsDir, path.basename(layer.imageUrl));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    // Supprimer les versions précédentes
+    if (layer.versions && layer.versions.length > 0) {
+      layer.versions.forEach(version => {
+        if (version.imageUrl) {
+          const filePath = path.join(uploadsDir, path.basename(version.imageUrl));
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        }
+      });
+    }
+
+    // Supprimer de la base de données
+    await db.collection('Layers').deleteOne({ _id: new ObjectId(id) });
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur suppression calque:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Upload d'image pour un calque
+app.post('/api/layers/upload', authenticateToken, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun fichier uploadé' });
+    }
+
+    const { layerId } = req.body;
+    const filePath = req.file.path;
+    const imageUrl = `/uploads/${req.file.filename}`;
+
+    // Obtenir les dimensions de l'image avec Sharp
+    const metadata = await sharp(filePath).metadata();
+    const dimensions = {
+      width: metadata.width,
+      height: metadata.height
+    };
+
+    if (layerId) {
+      // Mise à jour d'un calque existant
+      const layer = await db.collection('Layers').findOne({ _id: new ObjectId(layerId) });
+      if (!layer) {
+        // Supprimer le fichier uploadé si le calque n'existe pas
+        fs.unlinkSync(filePath);
+        return res.status(404).json({ error: 'Calque non trouvé' });
+      }
+
+      // Sauvegarder l'ancienne version si elle existe
+      if (layer.imageUrl) {
+        const versionData = {
+          imageUrl: layer.imageUrl,
+          dimensions: layer.dimensions,
+          fileSize: layer.fileSize,
+          uploadedAt: layer.lastModified || layer.createdAt,
+          version: (layer.versions?.length || 0) + 1
+        };
+
+        await db.collection('Layers').updateOne(
+          { _id: new ObjectId(layerId) },
+          { 
+            $push: { versions: versionData },
+            $set: {
+              imageUrl,
+              dimensions,
+              fileSize: req.file.size,
+              lastModified: new Date()
+            }
+          }
+        );
+      } else {
+        // Première image pour ce calque
+        await db.collection('Layers').updateOne(
+          { _id: new ObjectId(layerId) },
+          { 
+            $set: {
+              imageUrl,
+              dimensions,
+              fileSize: req.file.size,
+              lastModified: new Date()
+            }
+          }
+        );
+      }
+
+      const updatedLayer = await db.collection('Layers').findOne({ _id: new ObjectId(layerId) });
+      res.json(updatedLayer);
+    } else {
+      // Nouveau calque avec image
+      const newLayer = {
+        name: `Calque ${Date.now()}`,
+        description: '',
+        imageUrl,
+        dimensions,
+        fileSize: req.file.size,
+        opacity: 1,
+        visible: true,
+        zIndex: 0,
+        createdAt: new Date(),
+        lastModified: new Date(),
+        versions: []
+      };
+
+      const result = await db.collection('Layers').insertOne(newLayer);
+      const layer = await db.collection('Layers').findOne({ _id: result.insertedId });
+      
+      res.json(layer);
+    }
+  } catch (error) {
+    console.error('Erreur upload image:', error);
+    
+    // Supprimer le fichier en cas d'erreur
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    res.status(500).json({ error: 'Erreur lors de l\'upload' });
+  }
+});
+
+// Récupérer les calques publics (pour l'affichage non-admin)
+app.get('/api/layers/public', async (req, res) => {
+  try {
+    const layers = await db.collection('Layers')
+      .find({ visible: true })
+      .sort({ zIndex: 1, name: 1 })
+      .project({ 
+        name: 1, 
+        imageUrl: 1, 
+        opacity: 1, 
+        zIndex: 1, 
+        visible: 1,
+        description: 1 
+      })
+      .toArray();
+    res.json(layers);
+  } catch (error) {
+    console.error('Erreur récupération calques publics:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Initialiser les calques par défaut automatiquement (sans authentification)
+app.post('/api/layers/auto-init', async (req, res) => {
+  try {
+    // Vérifier si des calques existent déjà
+    const existingCount = await db.collection('Layers').countDocuments();
+    
+    if (existingCount > 0) {
+      return res.json({ success: true, message: 'Calques déjà initialisés', count: existingCount });
+    }
+
+    const defaultLayers = [
+      { name: "Situation actuelle", imageUrl: "/SIF-V6-SIF-EA.png", zIndex: 0 },
+      { name: "Phase 1", imageUrl: "/SIF-V6-PHASE1.png", zIndex: 1 },
+      { name: "Phase 1 pose", imageUrl: "/SIF-V3-Phase1 Pose.png", zIndex: 2 },
+      { name: "Phase 1 dépose", imageUrl: "/SIF-V3-Phase1Dépose.png", zIndex: 3 },
+      { name: "Phase 2", imageUrl: "/SIF-V3-Phase2.png", zIndex: 4 },
+      { name: "Phase 2 pose", imageUrl: "/SIF-V3-Phase2Pose.png", zIndex: 5 },
+      { name: "Phase 2 dépose", imageUrl: "/SIF-V3-Phase2Depose.png", zIndex: 6 },
+      { name: "Réflexion/option", imageUrl: "/SIF-V3-RéflexionLNPCA.png", zIndex: 7 },
+      { name: "HPMV", imageUrl: "/SIF-V3-HPMVpng.png", zIndex: 8 },
+      { name: "HPMV pose", imageUrl: "/SIF-V3-HPMVPosel.png", zIndex: 9 },
+      { name: "HPMV dépose", imageUrl: "/SIF-V3-HPMVDépose.png", zIndex: 10 },
+      { name: "Autres projets", imageUrl: "/SIF-V3-Autres-projets.png", zIndex: 11 },
+      { name: "Autres projets pose", imageUrl: "/SIF-V3-Autres-projets-Pose.png", zIndex: 12 },
+      { name: "Autres projets dépose", imageUrl: "/SIF-V3-Autres-projets-Déposel.png", zIndex: 13 }
+    ];
+
+    const layersToInsert = defaultLayers.map(layer => ({
+      ...layer,
+      description: `Calque ${layer.name}`,
+      opacity: layer.name === "Situation actuelle" ? 1 : 0.6,
+      visible: true,
+      dimensions: null,
+      fileSize: null,
+      createdAt: new Date(),
+      lastModified: new Date(),
+      versions: []
+    }));
+
+    await db.collection('Layers').insertMany(layersToInsert);
+    console.log(`✅ ${layersToInsert.length} calques par défaut créés automatiquement`);
+
+    res.json({ success: true, message: 'Calques par défaut initialisés automatiquement', count: layersToInsert.length });
+  } catch (error) {
+    console.error('Erreur auto-initialisation calques:', error);
+    res.status(500).json({ error: 'Erreur serveur lors de l\'auto-initialisation' });
+  }
+});
+
+// Auto-initialiser les calques par défaut (sans auth, pour le premier chargement)
+app.post('/api/layers/auto-init', async (req, res) => {
+  try {
+    // Vérifier si des calques existent déjà
+    const existingCount = await db.collection('Layers').countDocuments();
+    
+    if (existingCount > 0) {
+      return res.json({ success: true, message: 'Calques déjà existants' });
+    }
+
+    const defaultLayers = [
+      { name: "Situation actuelle", imageUrl: "/SIF-V6-SIF-EA.png", zIndex: 0 },
+      { name: "Phase 1", imageUrl: "/SIF-V6-PHASE1.png", zIndex: 1 },
+      { name: "Phase 1 pose", imageUrl: "/SIF-V3-Phase1 Pose.png", zIndex: 2 },
+      { name: "Phase 1 dépose", imageUrl: "/SIF-V3-Phase1Dépose.png", zIndex: 3 },
+      { name: "Phase 2", imageUrl: "/SIF-V3-Phase2.png", zIndex: 4 },
+      { name: "Phase 2 pose", imageUrl: "/SIF-V3-Phase2Pose.png", zIndex: 5 },
+      { name: "Phase 2 dépose", imageUrl: "/SIF-V3-Phase2Depose.png", zIndex: 6 },
+      { name: "Réflexion/option", imageUrl: "/SIF-V3-RéflexionLNPCA.png", zIndex: 7 },
+      { name: "HPMV", imageUrl: "/SIF-V3-HPMVpng.png", zIndex: 8 },
+      { name: "HPMV pose", imageUrl: "/SIF-V3-HPMVPosel.png", zIndex: 9 },
+      { name: "HPMV dépose", imageUrl: "/SIF-V3-HPMVDépose.png", zIndex: 10 },
+      { name: "Autres projets", imageUrl: "/SIF-V3-Autres-projets.png", zIndex: 11 },
+      { name: "Autres projets pose", imageUrl: "/SIF-V3-Autres-projets-Pose.png", zIndex: 12 },
+      { name: "Autres projets dépose", imageUrl: "/SIF-V3-Autres-projets-Déposel.png", zIndex: 13 }
+    ];
+
+    for (const layer of defaultLayers) {
+      const newLayer = {
+        ...layer,
+        description: `Calque ${layer.name}`,
+        opacity: layer.name === "Situation actuelle" ? 1 : 0.6,
+        visible: true,
+        dimensions: null,
+        fileSize: null,
+        createdAt: new Date(),
+        lastModified: new Date(),
+        versions: []
+      };
+
+      await db.collection('Layers').insertOne(newLayer);
+    }
+
+    console.log('✅ Auto-initialisation des calques par défaut terminée');
+    res.json({ success: true, message: 'Calques par défaut auto-initialisés' });
+  } catch (error) {
+    console.error('Erreur auto-initialisation calques:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Initialiser les calques par défaut (à exécuter une seule fois)
+app.post('/api/layers/init-defaults', authenticateToken, async (req, res) => {
+  try {
+    const defaultLayers = [
+      { name: "Situation actuelle", imageUrl: "/SIF-V6-SIF-EA.png", zIndex: 0 },
+      { name: "Phase 1", imageUrl: "/SIF-V6-PHASE1.png", zIndex: 1 },
+      { name: "Phase 1 pose", imageUrl: "/SIF-V3-Phase1 Pose.png", zIndex: 2 },
+      { name: "Phase 1 dépose", imageUrl: "/SIF-V3-Phase1Dépose.png", zIndex: 3 },
+      { name: "Phase 2", imageUrl: "/SIF-V3-Phase2.png", zIndex: 4 },
+      { name: "Phase 2 pose", imageUrl: "/SIF-V3-Phase2Pose.png", zIndex: 5 },
+      { name: "Phase 2 dépose", imageUrl: "/SIF-V3-Phase2Depose.png", zIndex: 6 },
+      { name: "Réflexion/option", imageUrl: "/SIF-V3-RéflexionLNPCA.png", zIndex: 7 },
+      { name: "HPMV", imageUrl: "/SIF-V3-HPMVpng.png", zIndex: 8 },
+      { name: "HPMV pose", imageUrl: "/SIF-V3-HPMVPosel.png", zIndex: 9 },
+      { name: "HPMV dépose", imageUrl: "/SIF-V3-HPMVDépose.png", zIndex: 10 },
+      { name: "Autres projets", imageUrl: "/SIF-V3-Autres-projets.png", zIndex: 11 },
+      { name: "Autres projets pose", imageUrl: "/SIF-V3-Autres-projets-Pose.png", zIndex: 12 },
+      { name: "Autres projets dépose", imageUrl: "/SIF-V3-Autres-projets-Déposel.png", zIndex: 13 }
+    ];
+
+    for (const layer of defaultLayers) {
+      // Vérifier si le calque existe déjà
+      const existing = await db.collection('Layers').findOne({ name: layer.name });
+      
+      if (!existing) {
+        const newLayer = {
+          ...layer,
+          description: `Calque ${layer.name}`,
+          opacity: layer.name === "Situation actuelle" ? 1 : 0.6,
+          visible: true,
+          dimensions: null,
+          fileSize: null,
+          createdAt: new Date(),
+          lastModified: new Date(),
+          versions: []
+        };
+
+        await db.collection('Layers').insertOne(newLayer);
+        console.log(`Calque créé: ${layer.name}`);
+      } else {
+        console.log(`Calque existe déjà: ${layer.name}`);
+      }
+    }
+
+    res.json({ success: true, message: 'Calques par défaut initialisés' });
+  } catch (error) {
+    console.error('Erreur initialisation calques:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Route de healthcheck pour Railway
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Fonction de démarrage du serveur
+async function startServer() {
+  await connectToMongoDB();
+  
+  app.listen(PORT, () => {
+    console.log(`✅ Serveur backend démarré sur http://localhost:${PORT}`);
+  });
+}
+
+// Démarrage
+startServer().catch(console.error);

@@ -1,8 +1,11 @@
-// Optimisations critiques à appliquer immédiatement
+// Configuration de l'API selon l'environnement
+export const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://your-production-domain.com'
+  : 'http://localhost:5000';
 
-// 1. Variables d'environnement
-export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 
-  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000');
+// Debug pour voir quelle URL est utilisée
+console.log('🔧 Environment:', process.env.NODE_ENV);
+console.log('🔧 API_BASE_URL:', API_BASE_URL);
 
 // 2. Configuration des constantes
 export const APP_CONFIG = {

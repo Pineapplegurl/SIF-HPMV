@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Navbar.css';
 import { FaUserCircle, FaFilePdf } from 'react-icons/fa';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { API_BASE_URL } from '../utils/config';
 
-function Navbar({ isAdmin, setIsAdmin, title = "SIF", onTablesClick, activePage, setActivePage }) {
+function Navbar({ isAdmin, setIsAdmin, title = "SIF", onTablesClick, activePage, setActivePage, onLogin, onLogout, isAuthenticated, refreshData }) {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // Switch handler
   const handleAdminSwitch = () => {
@@ -20,31 +22,47 @@ function Navbar({ isAdmin, setIsAdmin, title = "SIF", onTablesClick, activePage,
   };
 
   const handleLogin = async () => {
+    if (!passwordInput.trim()) {
+      setLoginError("Veuillez saisir le mot de passe");
+      return;
+    }
+
+    setLoading(true);
     setLoginError("");
+    
     try {
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "admin", password: passwordInput }),
+      console.log('🔐 Tentative de connexion vers:', `${API_BASE_URL}/api/login`);
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          username: 'admin',  // Hardcodé car c'est toujours admin
+          password: passwordInput  // Utilise passwordInput au lieu de password
+        }),
       });
+
       if (!response.ok) {
-        let errorMsg = `Erreur réseau (${response.status})`;
-        try {
-          const data = await response.json();
-          errorMsg = data.error || errorMsg;
-        } catch (e) {
-          errorMsg += ' (réponse non JSON)';
-        }
-        setLoginError(errorMsg);
-        return;
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
       const data = await response.json();
-      localStorage.setItem("token", data.token);
-      setIsAdmin(true);
-      setShowPasswordModal(false);
-      setPasswordInput("");
-    } catch (err) {
-      setLoginError("Erreur réseau ou serveur injoignable.");
+      
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        setIsAdmin(true);  // Met à jour l'état admin
+        setShowPasswordModal(false);
+        setPasswordInput('');
+        setLoginError('');
+      } else {
+        throw new Error('Token manquant dans la réponse');
+      }
+    } catch (error) {
+      console.error('Erreur de connexion:', error);
+      setLoginError('Mot de passe incorrect');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -87,6 +105,15 @@ function Navbar({ isAdmin, setIsAdmin, title = "SIF", onTablesClick, activePage,
               style={{ background: 'none' }}
             >
               Tables
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              className={`text-white font-semibold pb-1 border-b-2 ${activePage === 'admin-layers' ? 'border-white' : 'border-transparent'} bg-transparent focus:outline-none transition-none`}
+              onClick={() => setActivePage('admin-layers')}
+              style={{ background: 'none' }}
+            >
+              Gestion Calques
             </button>
           )}
         </nav>
