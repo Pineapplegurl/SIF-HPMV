@@ -34,6 +34,7 @@
     "build:frontend": "react-scripts build",
     "build:backend": "cd sif-backend && npm install",
     "build:netlify": "npm run build:frontend && cd netlify/functions && npm install",
+    "build:production": "GENERATE_SOURCEMAP=false CI=false npm run build:frontend && cd netlify/functions && npm install",
     "dev": "react-scripts start",
     "dev:netlify": "netlify dev",
     "test": "react-scripts test",
