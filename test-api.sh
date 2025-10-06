@@ -4,7 +4,7 @@ echo "🔧 Test de connectivité API SIF-HPMV"
 echo "=================================="
 
 # URL de base de votre application Netlify
-BASE_URL="https://your-app-name.netlify.app"
+BASE_URL="https://sif-hpmv.netlify.app"
 
 echo "1. Test du endpoint health..."
 curl -s "$BASE_URL/api/health" | jq . || echo "Endpoint health non disponible"
