@@ -79,7 +79,7 @@ app.post('/login', async (req, res) => {
 
     // Connexion admin
     if (username === 'admin') {
-      const adminHash = process.env.ADMIN_HASH || '$2b$12$eroS5zUaS2C8C8uq3Cg7X.N7A4Kw/fk4MqxnNiKstZn0TFy2efbKG';
+      const adminHash = process.env.ADMIN_HASH || '$2b$12$70BW4d5pbsjaDzZz5F/Ksuf23Ozt4gXm5lf9ZZ0DNyQsi2gwt/eNC';
       console.log('🔐 Vérification admin avec hash:', adminHash.substring(0, 20) + '...');
       
       const isValidPassword = await bcrypt.compare(password, adminHash);
