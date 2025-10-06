@@ -3,9 +3,6 @@ const serverless = require('serverless-http');
 const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
-const path = require('path');
-const multer = require('multer');
-const sharp = require('sharp');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
@@ -72,29 +69,53 @@ app.get('/health', (req, res) => {
 // Route de connexion
 app.post('/login', async (req, res) => {
   try {
+    console.log('🔐 Tentative de connexion:', req.body);
     await connectToMongoDB();
     const { username, password } = req.body;
 
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username et password requis' });
+    }
+
+    // Connexion admin
     if (username === 'admin') {
-      const adminHash = process.env.ADMIN_HASH;
-      if (adminHash && await bcrypt.compare(password, adminHash)) {
+      const adminHash = process.env.ADMIN_HASH || '$2b$12$eroS5zUaS2C8C8uq3Cg7X.N7A4Kw/fk4MqxnNiKstZn0TFy2efbKG';
+      console.log('🔐 Vérification admin avec hash:', adminHash.substring(0, 20) + '...');
+      
+      const isValidPassword = await bcrypt.compare(password, adminHash);
+      console.log('🔐 Résultat comparaison admin:', isValidPassword);
+      
+      if (isValidPassword) {
         const token = jwt.sign({ username: 'admin', role: 'admin' }, SECRET_KEY, { expiresIn: '24h' });
+        console.log('✅ Connexion admin réussie');
         return res.json({ token, role: 'admin', message: 'Connexion réussie' });
+      } else {
+        console.log('❌ Mot de passe admin incorrect');
+        return res.status(401).json({ message: 'Mot de passe incorrect' });
       }
     }
 
+    // Connexion utilisateur normal
     const users = db.collection('users');
     const user = await users.findOne({ username });
+    console.log('🔐 Utilisateur trouvé:', user ? 'Oui' : 'Non');
 
-    if (user && await bcrypt.compare(password, user.password)) {
-      const token = jwt.sign({ username: user.username, role: user.role }, SECRET_KEY, { expiresIn: '24h' });
-      res.json({ token, role: user.role, message: 'Connexion réussie' });
-    } else {
-      res.status(401).json({ message: 'Identifiants invalides' });
+    if (user) {
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      console.log('🔐 Résultat comparaison utilisateur:', isValidPassword);
+      
+      if (isValidPassword) {
+        const token = jwt.sign({ username: user.username, role: user.role }, SECRET_KEY, { expiresIn: '24h' });
+        console.log('✅ Connexion utilisateur réussie');
+        return res.json({ token, role: user.role, message: 'Connexion réussie' });
+      }
     }
+
+    console.log('❌ Identifiants invalides');
+    res.status(401).json({ message: 'Identifiants invalides' });
   } catch (error) {
-    console.error('Erreur de connexion:', error);
-    res.status(500).json({ message: 'Erreur serveur' });
+    console.error('❌ Erreur de connexion:', error);
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 });
 
