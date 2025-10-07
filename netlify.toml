@@ -19,5 +19,5 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "nft"
-  external_node_modules = ["bcrypt", "mongodb"]
+  
   external_node_modules = ["@mongodb-js/saslprep", "mongodb", "bcrypt"]
